@@ -16,83 +16,26 @@ class StepSequencerBase : public IControl
                          , public IVectorBase
 {
 public:
-  StepSequencerBase(const IRECT& bounds, const char* label, const IVStyle& style, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, std::initializer_list<const char*> trackNames = {})
-  : IControl(bounds)
-  , IVectorBase(style)
-  , mMinTrackValue(minTrackValue)
-  , mMaxTrackValue(maxTrackValue)
-  , mDirection(dir)
-  {
-    SetNVals(maxNTracks);
-
-    for (int i=0; i<maxNTracks; i++)
-    {
-      SetParamIdx(kNoParameter, i);
-      mTrackBounds.Add(IRECT());
-    }
-
-    if(trackNames.size())
-    {
-      assert(trackNames.size() == maxNTracks); // check that the trackNames list size matches the number of tracks
-
-      for (auto& trackName : trackNames)
-      {
-        mTrackNames.Add(new WDL_String(trackName));
-      }
-    }
-
-    AttachIControl(this, label);
-  }
-
-  StepSequencerBase(const IRECT& bounds, const char* label, const IVStyle& style, int lowParamidx, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, float grain = 0.001f, std::initializer_list<const char*> trackNames = {})
+  StepSequencerBase(const IRECT& bounds, const char* label, const IVStyle& style, int lowParamIdx, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, float grain = 0.001f, std::initializer_list<const char*> trackNames = {})
   : IControl(bounds)
   , IVectorBase(style)
   , mMinTrackValue(minTrackValue)
   , mMaxTrackValue(maxTrackValue)
   , mDirection(dir)
   , mGrain(grain)
+  , mLength(maxNTracks)
   {
     SetNVals(maxNTracks);
 
     for (int i = 0; i < maxNTracks; i++)
     {
-      SetParamIdx(lowParamidx+i, i);
+      SetParamIdx(lowParamIdx + i, i); // or kNoParameter
       mTrackBounds.Add(IRECT());
     }
 
     if(trackNames.size())
     {
       assert(trackNames.size() == maxNTracks);
-
-      for (auto& trackName : trackNames)
-      {
-        mTrackNames.Add(new WDL_String(trackName));
-      }
-    }
-
-    AttachIControl(this, label);
-  }
-
-  StepSequencerBase(const IRECT& bounds, const char* label, const IVStyle& style, const std::initializer_list<int>& params, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, std::initializer_list<const char*> trackNames = {})
-  : IControl(bounds)
-  , IVectorBase(style)
-  , mMinTrackValue(minTrackValue)
-  , mMaxTrackValue(maxTrackValue)
-  , mDirection(dir)
-  {
-    SetNVals(static_cast<int>(params.size()));
-
-    int valIdx = 0;
-    for (auto param : params)
-    {
-      SetParamIdx(param, valIdx++);
-      mTrackBounds.Add(IRECT());
-    }
-
-
-    if(trackNames.size())
-    {
-      assert(trackNames.size() == params.size());
 
       for (auto& trackName : trackNames)
       {
@@ -114,28 +57,93 @@ public:
     int dir = static_cast<int>(mDirection); // 0 = horizontal, 1 = vertical
     for (int ch = 0; ch < nVals; ch++)
     {
-      mTrackBounds.Get()[ch] = bounds.SubRect(EDirection(!dir), nVals, ch).
+      mTrackBounds.Get()[ch] = bounds.SubRect(EDirection(!dir), mLength, ch).
                                      GetPadded(0, -mTrackPadding * (float) dir, -mTrackPadding * (float) !dir, -mTrackPadding);
     }
   }
 
+  void SetLength(int length) {
+    mLength = max(1, length);
+    MakeTrackRects(mWidgetBounds);
+    SetSlidersDirty();
+    SetDirty(false);
+  }
+
+  int mLoopPoint = 0;
+  void SetLoopPoint(int idx) {
+    mLoopPoint = idx;
+    SetSlidersDirty();
+    SetDirty(false);
+  }
+
+  int mReleasePoint = 0;
+  void SetReleasePoint(int idx) {
+    mReleasePoint = idx;
+    SetSlidersDirty();
+    SetDirty(false);
+  }
+
+  void SetSlidersDirty() {
+    if (mLayerSliders) mLayerSliders->Invalidate();
+  }
+
+//  int ctr = 0;
+
   void DrawWidget(IGraphics& g) override
   {
-    int nVals = NVals();
+//    if (ctr % 10 == 0)
+//      DBGMSG("Drawing StepSequencer %d\n", ctr);
+//    ctr++;
 
-    // Draw grid lines
-    float nSteps = (mMaxTrackValue - mMinTrackValue)/mGrain;
-    IRECT line = mWidgetBounds.GetFromTop(1);
-    float gapHeight = mWidgetBounds.H() / nSteps;
-    for (int i = 1; i < nSteps; i++) {
-      g.FillRect(GetColor(kX1), line.GetTranslated(0.f, i * gapHeight), &mBlend);;
+    if (!g.CheckLayer(mLayerGrid)) {
+      g.StartLayer(this, mWidgetBounds);
+
+      // Draw grid lines
+      float nSteps = (mMaxTrackValue - mMinTrackValue)/mGrain;
+      IRECT line = mWidgetBounds.GetFromTop(1);
+      float gapHeight = mWidgetBounds.H() / nSteps;
+      for (int i = 1; i < nSteps; i++) {
+        g.FillRect(GetColor(kX1), line.GetTranslated(0.f, i * gapHeight), &mBlend);;
+      }
+
+      mLayerGrid = g.EndLayer();
     }
 
-    // Draw tracks
-    for (int ch = 0; ch < nVals; ch++)
-    {
-      DrawTrack(g, mTrackBounds.Get()[ch], ch);
+    if(!g.CheckLayer(mLayerSliders)) {
+      g.StartLayer(this, mWidgetBounds);
+
+      // Draw tracks
+      for (int ch = 0; ch < mLength; ch++) {
+        DrawTrack(g, mTrackBounds.Get()[ch], ch);
+      }
+
+      int lrH = 4;
+      IRECT loopRect = mWidgetBounds.GetFromTRHC((mLength - mLoopPoint   ) * mWidgetBounds.W() / mLength, lrH);
+      IRECT relsRect = mWidgetBounds.GetFromTRHC((mLength - mReleasePoint) * mWidgetBounds.W() / mLength, lrH);
+      g.FillRect(COLOR_YELLOW, loopRect, &mBlend);
+      g.FillRect(COLOR_ORANGE, relsRect, &mBlend);
+
+      mLayerSliders = g.EndLayer();
     }
+
+//    if (!g.CheckLayer(mLayerPlayhead)) {
+//      IRECT r = mTrackBounds.Get()[0];
+//      g.StartLayer(this, r);
+//      g.FillRect(COLOR_RED, r, &BLEND_50);
+//      mLayerPlayhead = g.EndLayer();
+//    }
+
+    g.DrawBitmap(mLayerGrid->GetBitmap(), mWidgetBounds);
+
+//    IRECT r = mTrackBounds.Get()[0];
+//    g.DrawBitmap(mLayerPlayhead->GetBitmap(), mWidgetBounds.GetHShifted(r.W() * mHighlightIdx));
+    g.DrawBitmap(mLayerSliders->GetBitmap(), mWidgetBounds);
+
+    if (mHighlightIdx >= 0 && mHighlightIdx < mLength) {
+      IRECT r = mTrackBounds.Get()[mHighlightIdx];
+      g.FillRect(COLOR_RED, r, &BLEND_25);
+    }
+
   }
 
   /** Update the parameters based on a parameter group name.
@@ -209,32 +217,40 @@ public:
       mTrackNames.Get(chIdx)->Set(newName);
     }
   }
-//
-//  void SetHighlightIdx(int chIdx) {
-//    chIdx = clamp(chIdx, -1, NVals());
-//
-//    if (mHighlightIdx != chIdx) {
-//      mHighlightIdx = chIdx;
-//      SetDirty(false, chIdx);
-//    }
-//  }
+
+  void SetHighlightIdx(int chIdx) {
+    if (mHighlightIdx != chIdx) {
+      mHighlightIdx = chIdx;
+      SetDirty(false, clamp(chIdx, 0, NVals() - 1));
+    }
+  }
+
+  void OnMsgFromDelegate(int msgTag, int dataSize, const void* pData) override {
+    if (!IsDisabled() && msgTag == ISender<>::kUpdateMessage) {
+      IByteStream stream(pData, dataSize);
+
+      int pos = 0;
+      ISenderData<1, int> d;
+      pos = stream.Get(&d, pos);
+      SetHighlightIdx(d.vals[0]);
+    }
+  }
+
+  
 
 protected:
 
   virtual void DrawTrack(IGraphics& g, const IRECT& r, int chIdx)
   {
-    DrawTrackBG(g, r, chIdx);
-//
-//    if(chIdx == mHighlightIdx)
-//      g.FillRect(COLOR_RED, r, &BLEND_50);
+//    DrawTrackBG(g, r, chIdx);
 
     if(HasTrackNames())
       DrawTrackName(g, r, chIdx);
 
     DrawTrackHandle(g, r, chIdx);
 
-    if(mStyle.drawFrame && mDrawTrackFrame)
-      g.DrawRect(GetColor(kFR), r, &mBlend, mStyle.frameThickness);
+//    if(mStyle.drawFrame && mDrawTrackFrame)
+//      g.DrawRect(GetColor(kFR), r, &mBlend, mStyle.frameThickness);
   }
 
   virtual void DrawTrackBG(IGraphics& g, const IRECT& r, int chIdx)
@@ -252,21 +268,20 @@ protected:
     IRECT fillRect = r.FracRect(mDirection, static_cast<float>(GetValue(chIdx)));
 
     g.FillRect(GetColor(kFG), fillRect, &mBlend); // TODO: shadows!
-
-    IRECT peakRect;
-
-    if(mDirection == EDirection::Vertical)
-      peakRect = IRECT(fillRect.L, fillRect.T, fillRect.R, fillRect.T + mPeakSize);
-    else
-      peakRect = IRECT(fillRect.R - mPeakSize, fillRect.T, fillRect.R, fillRect.B);
-
-    DrawPeak(g, peakRect, chIdx);
+//    IRECT peakRect;
+//
+//    if(mDirection == EDirection::Vertical)
+//      peakRect = IRECT(fillRect.L, fillRect.T, fillRect.R, fillRect.T + mPeakSize);
+//    else
+//      peakRect = IRECT(fillRect.R - mPeakSize, fillRect.T, fillRect.R, fillRect.B);
+//
+//    DrawPeak(g, peakRect, chIdx);
   }
 
-  virtual void DrawPeak(IGraphics& g, const IRECT& r, int chIdx)
-  {
-    g.FillRect(GetColor(kFR), r, &mBlend);
-  }
+//  virtual void DrawPeak(IGraphics& g, const IRECT& r, int chIdx)
+//  {
+//    g.FillRect(GetColor(kFR), r, &mBlend);
+//  }
 
   virtual void OnResize() override
   {
@@ -275,6 +290,8 @@ protected:
     SetDirty(false);
   }
 
+  
+
 protected:
   EDirection mDirection = EDirection::Vertical;
   WDL_TypedBuf<IRECT> mTrackBounds;
@@ -282,10 +299,15 @@ protected:
   float mMinTrackValue;
   float mMaxTrackValue;
   float mTrackPadding = 0.;
-  float mPeakSize = 1.;
+//  float mPeakSize = 1.;
   float mGrain = 0.001f;
   bool mDrawTrackFrame = true;
   int mHighlightIdx = -1;
+  int mLength = 1;
+
+  ILayerPtr mLayerGrid;
+  ILayerPtr mLayerPlayhead;
+  ILayerPtr mLayerSliders;
 };
 
 //BEGIN_IPLUG_NAMESPACE
@@ -298,10 +320,12 @@ class StepSequencer : public StepSequencerBase
 {
 public:
 
-  /** Constructs a vector multi slider control that is not linked to parameters
+  /** Constructs a vector multi slider control that is linked to parameters
    * @param bounds The control's bounds
    * @param label The label for the vector control, leave empty for no label
    * @param style The styling of this vector control \see IVStyle
+   * @param grain The smallest value increment of the sliders
+   * @param loParamIdx The parameter index for the first slider in the multislider. The total number of sliders/parameters covered depends on the template argument, and is contiguous from loParamIdx
    * @param direction The direction of the sliders
    * @param minTrackValue Defines the minimum value of each slider
    * @param maxTrackValue Defines the maximum value of each slider */
@@ -312,31 +336,9 @@ public:
     mTrackPadding = 1.f;
   }
 
-  /** Constructs a vector multi slider control that is linked to parameters
-   * @param bounds The control's bounds
-   * @param label The label for the vector control, leave empty for no label
-   * @param style The styling of this vector control \see IVStyle
-   * @param loParamIdx The parameter index for the first slider in the multislider. The total number of sliders/parameters covered depends on the template argument, and is contiguous from loParamIdx
-   * @param direction The direction of the sliders
-   * @param minTrackValue Defines the minimum value of each slider
-   * @param maxTrackValue Defines the maximum value of each slider */
-  StepSequencer(const IRECT& bounds, const char* label, const IVStyle& style, int loParamIdx, EDirection dir, float minTrackValue, float maxTrackValue) //FIXME: float minTrackValue, float maxTrackValue?
-  : StepSequencerBase(bounds, label, style, loParamIdx, MAXNC, dir, minTrackValue, maxTrackValue)
-  {
-    mDrawTrackFrame = false;
-    mTrackPadding = 1.f;
-  }
-
-  StepSequencer(const IRECT& bounds, const char* label, const IVStyle& style, const std::initializer_list<int>& params, EDirection dir, float minTrackValue, float maxTrackValue)//, const char* trackNames = 0, ...)
-  : StepSequencerBase(bounds, label, style, params, dir, minTrackValue, maxTrackValue)
-  {
-    mDrawTrackFrame = false;
-    mTrackPadding = 1.f;
-  }
-
   void Draw(IGraphics& g) override
   {
-    DrawBackGround(g, mRECT);
+//    DrawBackGround(g, mRECT);
     DrawWidget(g);
     DrawLabel(g);
 
@@ -403,6 +405,7 @@ public:
       float oldValue = GetValue(sliderTest);
       float newValue = mMinTrackValue + Clip(value, 0.f, 1.f) * (mMaxTrackValue - mMinTrackValue);
       if (newValue != oldValue) {
+        mLayerSliders->Invalidate();
         SetValue(newValue, sliderTest);
         OnNewValue(sliderTest, newValue);
         SetDirty(true, mSliderHit); // will send all param vals parameter value to delegate
@@ -432,6 +435,7 @@ public:
             float oldValue = GetValue(i);
             float newValue = std::ceil(iplug::Lerp(GetValue(lowBounds), GetValue(highBounds), frac) / mGrain) * mGrain;
             if (newValue != oldValue) {
+              mLayerSliders->Invalidate();
               SetValue(newValue, i);
               OnNewValue(i, newValue);
               SetDirty(true, i);
@@ -467,6 +471,5 @@ protected:
   int mPrevSliderHit = -1;
   int mSliderHit = -1;
 };
-
 
 #endif /* StepSequencer_h */
