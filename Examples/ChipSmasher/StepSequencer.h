@@ -12,11 +12,21 @@
 #include "IControl.h"
 
 /** A base class for mult-strip/track controls, such as multi-sliders, meters */
-class StepSequencerBase : public IControl
+class StepSequencer : public IControl
                          , public IVectorBase
 {
 public:
-  StepSequencerBase(const IRECT& bounds, const char* label, const IVStyle& style, int lowParamIdx, int maxNTracks = 1, EDirection dir = EDirection::Horizontal, float minTrackValue = 0.f, float maxTrackValue = 1.f, float grain = 0.001f, std::initializer_list<const char*> trackNames = {})
+
+  /** Constructs a vector multi slider control that is linked to parameters
+   * @param bounds The control's bounds
+   * @param label The label for the vector control, leave empty for no label
+   * @param style The styling of this vector control \see IVStyle
+   * @param grain The smallest value increment of the sliders
+   * @param lowParamIdx The parameter index for the first slider in the multislider. The total number of sliders/parameters covered depends on the template argument, and is contiguous from loParamIdx
+   * @param direction The direction of the sliders
+   * @param minTrackValue Defines the minimum value of each slider
+   * @param maxTrackValue Defines the maximum value of each slider */
+  StepSequencer(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, float grain = 0.001f, int lowParamIdx = -1, int maxNTracks = 1, EDirection dir = EDirection::Vertical, float minTrackValue = 0.f, float maxTrackValue = 1.f, std::initializer_list<const char*> trackNames = {})
   : IControl(bounds)
   , IVectorBase(style)
   , mMinTrackValue(minTrackValue)
@@ -25,6 +35,9 @@ public:
   , mGrain(grain)
   , mLength(maxNTracks)
   {
+    mDrawTrackFrame = false;
+    mTrackPadding = 1.f;
+
     SetNVals(maxNTracks);
 
     for (int i = 0; i < maxNTracks; i++)
@@ -46,9 +59,34 @@ public:
     AttachIControl(this, label);
   }
 
-  virtual ~StepSequencerBase()
+  virtual ~StepSequencer()
   {
     mTrackNames.Empty(true);
+  }
+
+  void Draw(IGraphics& g) override
+  {
+    DrawBackGround(g, mRECT);
+    DrawWidget(g);
+    DrawLabel(g);
+
+    if(mStyle.drawFrame)
+      g.DrawRect(GetColor(kFR), mWidgetBounds, &mBlend, mStyle.frameThickness);
+  }
+
+  int GetValIdxForPos(float x, float y) const override
+  {
+    int nVals = NVals();
+
+    for (auto v = 0; v < nVals; v++)
+    {
+      if (mTrackBounds.Get()[v].Contains(x, y))
+      {
+        return v;
+      }
+    }
+
+    return kNoValIdx;
   }
 
   virtual void MakeTrackRects(const IRECT& bounds)
@@ -237,130 +275,6 @@ public:
   }
 
   
-
-protected:
-
-  virtual void DrawTrack(IGraphics& g, const IRECT& r, int chIdx)
-  {
-//    DrawTrackBG(g, r, chIdx);
-
-    if(HasTrackNames())
-      DrawTrackName(g, r, chIdx);
-
-    DrawTrackHandle(g, r, chIdx);
-
-//    if(mStyle.drawFrame && mDrawTrackFrame)
-//      g.DrawRect(GetColor(kFR), r, &mBlend, mStyle.frameThickness);
-  }
-
-  virtual void DrawTrackBG(IGraphics& g, const IRECT& r, int chIdx)
-  {
-    g.FillRect(kBG, r, &mBlend);
-  }
-
-  virtual void DrawTrackName(IGraphics& g, const IRECT& r, int chIdx)
-  {
-    g.DrawText(mText, GetTrackName(chIdx), r);
-  }
-
-  virtual void DrawTrackHandle(IGraphics& g, const IRECT& r, int chIdx)
-  {
-    IRECT fillRect = r.FracRect(mDirection, static_cast<float>(GetValue(chIdx)));
-
-    g.FillRect(GetColor(kFG), fillRect, &mBlend); // TODO: shadows!
-//    IRECT peakRect;
-//
-//    if(mDirection == EDirection::Vertical)
-//      peakRect = IRECT(fillRect.L, fillRect.T, fillRect.R, fillRect.T + mPeakSize);
-//    else
-//      peakRect = IRECT(fillRect.R - mPeakSize, fillRect.T, fillRect.R, fillRect.B);
-//
-//    DrawPeak(g, peakRect, chIdx);
-  }
-
-//  virtual void DrawPeak(IGraphics& g, const IRECT& r, int chIdx)
-//  {
-//    g.FillRect(GetColor(kFR), r, &mBlend);
-//  }
-
-  virtual void OnResize() override
-  {
-    SetTargetRECT(MakeRects(mRECT));
-    MakeTrackRects(mWidgetBounds);
-    SetDirty(false);
-  }
-
-  
-
-protected:
-  EDirection mDirection = EDirection::Vertical;
-  WDL_TypedBuf<IRECT> mTrackBounds;
-  WDL_PtrList<WDL_String> mTrackNames;
-  float mMinTrackValue;
-  float mMaxTrackValue;
-  float mTrackPadding = 0.;
-//  float mPeakSize = 1.;
-  float mGrain = 0.001f;
-  bool mDrawTrackFrame = true;
-  int mHighlightIdx = -1;
-  int mLength = 1;
-
-  ILayerPtr mLayerGrid;
-  ILayerPtr mLayerPlayhead;
-  ILayerPtr mLayerSliders;
-};
-
-//BEGIN_IPLUG_NAMESPACE
-//BEGIN_IGRAPHICS_NAMESPACE
-
-/** A vectorial multi-slider control
- * @ingroup IControls */
-template <int MAXNC = 1>
-class StepSequencer : public StepSequencerBase
-{
-public:
-
-  /** Constructs a vector multi slider control that is linked to parameters
-   * @param bounds The control's bounds
-   * @param label The label for the vector control, leave empty for no label
-   * @param style The styling of this vector control \see IVStyle
-   * @param grain The smallest value increment of the sliders
-   * @param loParamIdx The parameter index for the first slider in the multislider. The total number of sliders/parameters covered depends on the template argument, and is contiguous from loParamIdx
-   * @param direction The direction of the sliders
-   * @param minTrackValue Defines the minimum value of each slider
-   * @param maxTrackValue Defines the maximum value of each slider */
-  StepSequencer(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, float grain = 0.001f, int loParamIdx = -1, EDirection dir = EDirection::Vertical, float minTrackValue = 0.f, float maxTrackValue = 1.f)
-  : StepSequencerBase(bounds, label, style, loParamIdx, MAXNC, dir, minTrackValue, maxTrackValue, grain)
-  {
-    mDrawTrackFrame = false;
-    mTrackPadding = 1.f;
-  }
-
-  void Draw(IGraphics& g) override
-  {
-//    DrawBackGround(g, mRECT);
-    DrawWidget(g);
-    DrawLabel(g);
-
-    if(mStyle.drawFrame)
-      g.DrawRect(GetColor(kFR), mWidgetBounds, &mBlend, mStyle.frameThickness);
-  }
-
-  int GetValIdxForPos(float x, float y) const override
-  {
-    int nVals = NVals();
-
-    for (auto v = 0; v < nVals; v++)
-    {
-      if (mTrackBounds.Get()[v].Contains(x, y))
-      {
-        return v;
-      }
-    }
-
-    return kNoValIdx;
-  }
-
   void SnapToMouse(float x, float y, EDirection direction, const IRECT& bounds, int valIdx = -1 /* TODO:: not used*/, double minClip = 0., double maxClip = 1.) override
   {
     bounds.Constrain(x, y);
@@ -468,8 +382,107 @@ public:
   virtual void OnNewValue(int trackIdx, double val) {}
 
 protected:
+
+  virtual void DrawTrack(IGraphics& g, const IRECT& r, int chIdx)
+  {
+//    DrawTrackBG(g, r, chIdx);
+
+    if(HasTrackNames())
+      DrawTrackName(g, r, chIdx);
+
+    DrawTrackHandle(g, r, chIdx);
+
+//    if(mStyle.drawFrame && mDrawTrackFrame)
+//      g.DrawRect(GetColor(kFR), r, &mBlend, mStyle.frameThickness);
+  }
+
+  virtual void DrawTrackBG(IGraphics& g, const IRECT& r, int chIdx)
+  {
+    g.FillRect(kBG, r, &mBlend);
+  }
+
+  virtual void DrawTrackName(IGraphics& g, const IRECT& r, int chIdx)
+  {
+    g.DrawText(mText, GetTrackName(chIdx), r);
+  }
+
+  virtual void DrawTrackHandle(IGraphics& g, const IRECT& r, int chIdx)
+  {
+    IRECT fillRect = r.FracRect(mDirection, static_cast<float>(GetValue(chIdx)));
+
+    g.FillRect(GetColor(kFG), fillRect, &mBlend); // TODO: shadows!
+//    IRECT peakRect;
+//
+//    if(mDirection == EDirection::Vertical)
+//      peakRect = IRECT(fillRect.L, fillRect.T, fillRect.R, fillRect.T + mPeakSize);
+//    else
+//      peakRect = IRECT(fillRect.R - mPeakSize, fillRect.T, fillRect.R, fillRect.B);
+//
+//    DrawPeak(g, peakRect, chIdx);
+  }
+
+//  virtual void DrawPeak(IGraphics& g, const IRECT& r, int chIdx)
+//  {
+//    g.FillRect(GetColor(kFR), r, &mBlend);
+//  }
+
+  virtual void OnResize() override
+  {
+    SetTargetRECT(MakeRects(mRECT));
+    MakeTrackRects(mWidgetBounds);
+    SetDirty(false);
+  }
+
+  
+
+protected:
+  EDirection mDirection = EDirection::Vertical;
+  WDL_TypedBuf<IRECT> mTrackBounds;
+  WDL_PtrList<WDL_String> mTrackNames;
+  float mMinTrackValue;
+  float mMaxTrackValue;
+  float mTrackPadding = 0.;
+//  float mPeakSize = 1.;
+  float mGrain = 0.001f;
+  bool mDrawTrackFrame = true;
+  int mHighlightIdx = -1;
+  int mLength = 1;
+
+  ILayerPtr mLayerGrid;
+  ILayerPtr mLayerPlayhead;
+  ILayerPtr mLayerSliders;
+
   int mPrevSliderHit = -1;
   int mSliderHit = -1;
 };
+
+//BEGIN_IPLUG_NAMESPACE
+//BEGIN_IGRAPHICS_NAMESPACE
+
+/** A vectorial multi-slider control
+ * @ingroup IControls */
+//template <int MAXNC = 1>
+//class StepSequencer : public StepSequencerBase
+//{
+//public:
+//
+//  /** Constructs a vector multi slider control that is linked to parameters
+//   * @param bounds The control's bounds
+//   * @param label The label for the vector control, leave empty for no label
+//   * @param style The styling of this vector control \see IVStyle
+//   * @param grain The smallest value increment of the sliders
+//   * @param loParamIdx The parameter index for the first slider in the multislider. The total number of sliders/parameters covered depends on the template argument, and is contiguous from loParamIdx
+//   * @param direction The direction of the sliders
+//   * @param minTrackValue Defines the minimum value of each slider
+//   * @param maxTrackValue Defines the maximum value of each slider */
+//  StepSequencer(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, float grain = 0.001f, int loParamIdx = -1, EDirection dir = EDirection::Vertical, float minTrackValue = 0.f, float maxTrackValue = 1.f)
+//  : StepSequencerBase(bounds, label, style, loParamIdx, MAXNC, dir, minTrackValue, maxTrackValue, grain)
+//  {
+//    mDrawTrackFrame = false;
+//    mTrackPadding = 1.f;
+//  }
+//
+//
+//};
 
 #endif /* StepSequencer_h */
