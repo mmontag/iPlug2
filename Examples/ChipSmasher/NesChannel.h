@@ -33,22 +33,6 @@ public:
     mNoteTable = NesApu::GetNoteTableForChannel(channel);
   }
 
-  void ProcessEffects() {}
-//  void Advance() {}
-//  void PlayNote(Note newNote) {
-//    note = newNote;
-//  }
-//  void UpdateEnvelope() {}
-//  void WriteRegister() {}
-  bool IsSeeking() { return false; }
-//  int GetEnvelopeFrame() {}
-//  void ClearNote() {}
-  int MultiplyVolumes(int v0, int v1) {
-    auto vol = (int)roundf((v0 / 15.0f) * (v1 / 15.0f) * 15.0f);
-    if (vol == 0 && v0 != 0 && v1 != 0) return 1;
-    return vol;
-  }
-
   virtual int GetPeriod() {
     int arpNote = mEnvs.arp.GetValueAndAdvance();
     int basePeriod = mNoteTable[mBaseNote + arpNote] - mEnvs.pitch.GetValueAndAdvance();
@@ -57,20 +41,17 @@ public:
   }
 
   virtual int GetVolume() {
-    // TODO: implement velocity sensitivity
-    // return MultiplyVolumes(note.Volume, envelopeValues[Envelope.Volume]);
     int envVolume = mEnvs.volume.GetValueAndAdvance();
+    // Simple multiply https://docs.google.com/spreadsheets/d/1i1xJdoUZuDM50SogPGg270OP6oX1rjiDNVBMh6yfQiw/edit#gid=1871770382
     return ceil(envVolume * mVelocity);
   }
 
   virtual int GetDuty() {
-    // return envelopeValues[Enveelope.DutyCycle];
     return mEnvs.duty.GetValueAndAdvance() % 4; // 2A03 pulse channels duty: 0, 1, 2, 3
   }
 
   // TODO rename something like Advance() or EndFrame()
   virtual void UpdateAPU() {
-//    noteTriggered = false;
   }
 
   virtual void SetPitchBend(float pitchBend) {
@@ -80,7 +61,6 @@ public:
     }
   }
 
-// TODO
   virtual void Trigger(int baseNote, double velocity) {
     mBaseNote = baseNote;
     mVelocity = velocity;
@@ -99,20 +79,11 @@ public:
 //protected:
   shared_ptr<Simple_Apu> mNesApu;
   NesApu::Channel mChannel;
-  //Note note = new Note(Note.NoteInvalid);
-//  bool noteTriggered = false;
-  bool pitchEnvelopeOverride = false;
   array<ushort, 97> mNoteTable;
-//  Note note;
   int mBaseNote = 40;
-  int maxPeriod = 2047;
-  //  int envelopeIdx[] = new int[Envelope.Count];
-  //  int envelopeValues[] = new int[Envelope.Count];
   NesEnvelopes mEnvs;
   float mPitchBendRatio = 1;
   float mPitchBend = 0;
-  float mFreq;
-  float mBasePeriod;
   float mVelocity;
 };
 
@@ -143,7 +114,7 @@ public:
       if (deltaHi != 0) {
         // TODO: get smoothVibrato from some setting
         bool smoothVibrato = true;
-        if (smoothVibrato && abs(deltaHi) == 1 && !IsSeeking()) {
+        if (smoothVibrato && abs(deltaHi) == 1) { // originally && !IsSeeking()
           // Blaarg's smooth vibrato technique using the sweep
           // to avoid resetting the phase. Cool stuff.
           // http://forums.nesdev.com/viewtopic.php?t=231
@@ -184,21 +155,6 @@ public:
   }
 
   virtual void UpdateAPU() {
-//            if (note.IsStop)
-//            {
-//                WriteRegister(NesApu.APU_TRI_LINEAR, 0x80);
-//            }
-//            else if (note.IsMusical)
-//            {
-//                var period = GetPeriod();
-//
-//                WriteRegister(NesApu.APU_TRI_LO, (period >> 0) & 0xff);
-//                WriteRegister(NesApu.APU_TRI_HI, (period >> 8) & 0x07);
-//                WriteRegister(NesApu.APU_TRI_LINEAR, 0x80 | envelopeValues[Envelope.Volume]);
-//            }
-//
-//            base.UpdateAPU();
-
     if (mEnvs.volume.GetState() != NesEnvelope::ENV_OFF) {
       int volume = GetVolume();
       int period = GetPeriod();
