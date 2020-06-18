@@ -20,6 +20,10 @@ public:
     ENV_OFF
   };
 
+  NesEnvelope(int defaultValue) {
+    mValues.fill(defaultValue);
+  }
+
   NesEnvelope(shared_ptr<array<int, 64>> values) : mNesEnvValues(values) {}
 
   void Trigger() {
@@ -52,8 +56,8 @@ public:
       case ENV_OFF:
         return 0;
     }
-    assert(step < mNesEnvValues->size());
-    return mNesEnvValues->at(step);
+    assert(step < mValues.size());
+    return mValues.at(step);
   }
 
   int GetStep() {
@@ -66,8 +70,8 @@ public:
 
   void SetLength(int length) {
     mLength = clamp(length, 1, 64);
-    if (mReleasePoint > mLength) mReleasePoint = mLength;
-    if (mLoopPoint > mLength) mLoopPoint = mLength;
+//    if (mReleasePoint > mLength) mReleasePoint = mLength;
+//    if (mLoopPoint > mLength) mLoopPoint = mLength;
   }
 
   void SetSpeedDivider(int speedDivider) {
@@ -85,41 +89,24 @@ public:
     mReleasePoint = clamp(releasePoint, 1, 64);
     if (mLoopPoint > mReleasePoint) mLoopPoint = mReleasePoint;
   }
+  array<int, 64> mValues;
+
+  int mStep = 0;
+  int mLoopPoint = 15;
+  int mReleasePoint = 16;
+  int mLength = 16;
+  int mSpeedDivider = 1;
 
 protected:
   NesEnvelope::State mState = ENV_OFF;
-  int mStep = 0;
-  int mLength = 64;
-  int mLoopPoint = 63;
-  int mReleasePoint = 63;
-  int mSpeedDivider = 1;
-
   shared_ptr<array<int, 64>> mNesEnvValues;
 };
 
-struct PulseEnvelopes {
-  NesEnvelope arp;
-  NesEnvelope pitch;
-  NesEnvelope volume;
-  NesEnvelope duty;
-};
-
-struct NoiseEnvelopes {
-  NesEnvelope arp;
-  NesEnvelope volume;
-  NesEnvelope period;
-};
-
-struct TriangleEnvelopes {
-  NesEnvelope arp;
-  NesEnvelope pitch;
-};
-
 struct NesEnvelopes {
-  PulseEnvelopes    pulse1Envelopes;
-  PulseEnvelopes    pulse2Envelopes;
-  TriangleEnvelopes triangleEnvelopes;
-  NoiseEnvelopes    noiseEnvelopes;
+  NesEnvelope arp{0};
+  NesEnvelope pitch{0};
+  NesEnvelope volume{15};
+  NesEnvelope duty{2};
 };
 
 #endif /* NesEnvelope_h */
