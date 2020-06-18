@@ -9,6 +9,7 @@
 #define NesChannelState_h
 
 #include "NesApu.h"
+#include "NesDpcm.h"
 #include "NesEnvelope.h"
 #include <algorithm>
 
@@ -24,10 +25,10 @@ struct Note {
 class NesChannel
 {
 public:
-  NesChannel(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, shared_ptr<NesEnvelope> nesEnvelope) // TODO: pal, numN163Channels
+  NesChannel(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes = NesEnvelopes()) // TODO: pal, numN163Channels
   {
     mNesApu = nesApu;
-    mNesEnvelope = nesEnvelope;
+    mEnvs = nesEnvelopes;
     mChannel = channel;
     mNoteTable = NesApu::GetNoteTableForChannel(channel);
   }
@@ -48,42 +49,52 @@ public:
     return vol;
   }
 
-  int GetPeriod() {
-//    int noteVal = clamp(note.Value + envelopeValues[Envelope.Arpeggio], 0, noteTable.size() - 1);
-//    int pitch = (note.FinePitch + envelopeValues[Envelope.Pitch]) << pitchShift;
-//    int slide = slideShift < 0 ? (slidePitch >> -slideShift) : (slidePitch << slideShift); // Remove the fraction part.
-//    return Utils.Clamp(noteTable[noteVal] + pitch + slide, 0, maximumPeriod);
-//    printf("Note value: %d Period: %d\n", note.value, noteTable[note.value]);
-
-
-    // TODO: don't share envelopes among channels
-    int noteEnv = mNesEnvelope->GetValueAndAdvance();
-
-    return mNoteTable[mBaseNote + noteEnv];
+  virtual int GetPeriod() {
+    int arpNote = mEnvs.arp.GetValueAndAdvance();
+    int basePeriod = mNoteTable[mBaseNote + arpNote] - mEnvs.pitch.GetValueAndAdvance();
+    int period = clamp(basePeriod / mPitchBendRatio, 8, 2047);
+    return period;
   }
-  int GetVolume() {
+
+  virtual int GetVolume() {
+    // TODO: implement velocity sensitivity
     // return MultiplyVolumes(note.Volume, envelopeValues[Envelope.Volume]);
-    return 15;
+    int envVolume = mEnvs.volume.GetValueAndAdvance();
+    return ceil(envVolume * mVelocity);
   }
-  int GetDuty() {
+
+  virtual int GetDuty() {
     // return envelopeValues[Enveelope.DutyCycle];
-    return 2;
+    return mEnvs.duty.GetValueAndAdvance() % 4; // 2A03 pulse channels duty: 0, 1, 2, 3
   }
+
   // TODO rename something like Advance() or EndFrame()
-  void UpdateAPU() {
+  virtual void UpdateAPU() {
 //    noteTriggered = false;
   }
 
-// TODO
-  void Trigger(int baseNote) {
-    mBaseNote = baseNote;
-    mNesEnvelope->Trigger(); // TODO: foreach
-    UpdateAPU();
+  virtual void SetPitchBend(float pitchBend) {
+    if (mPitchBend != pitchBend) {
+      mPitchBendRatio = pow(2., pitchBend);
+      mPitchBend = pitchBend;
+    }
   }
 
-  void Release() {
-    mNesEnvelope->Release(); // TODO: foreach
-    UpdateAPU();
+// TODO
+  virtual void Trigger(int baseNote, double velocity) {
+    mBaseNote = baseNote;
+    mVelocity = velocity;
+    mEnvs.volume.Trigger();
+    mEnvs.arp.Trigger();
+    mEnvs.pitch.Trigger();
+    mEnvs.duty.Trigger();
+  }
+
+  virtual void Release() {
+    mEnvs.volume.Release();
+    mEnvs.arp.Release();
+    mEnvs.pitch.Release();
+    mEnvs.duty.Release();
   }
 //protected:
   shared_ptr<Simple_Apu> mNesApu;
@@ -97,37 +108,41 @@ public:
   int maxPeriod = 2047;
   //  int envelopeIdx[] = new int[Envelope.Count];
   //  int envelopeValues[] = new int[Envelope.Count];
-  shared_ptr<NesEnvelope> mNesEnvelope;
-
+  NesEnvelopes mEnvs;
+  float mPitchBendRatio = 1;
+  float mPitchBend = 0;
+  float mFreq;
+  float mBasePeriod;
+  float mVelocity;
 };
 
 class NesChannelPulse : public NesChannel
 {
 public:
-  int regOffset = 0;
-  int prevPeriodHi = 1000;
+  int mRegOffset = 0;
+  int mPrevPeriodHi = 1000;
 
-  NesChannelPulse(shared_ptr<Simple_Apu> nesApu, NesApu::Channel type, shared_ptr<NesEnvelope> nesEnvelope) : NesChannel(nesApu, type, nesEnvelope)
+  NesChannelPulse(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes)
   {
     // 0x4000 for Square1, 0x4004 for Square2
-    regOffset = mChannel * 4;
+    mRegOffset = mChannel * 4;
   }
 
-  void UpdateAPU() {
+  virtual void UpdateAPU() override {
     int duty = GetDuty();
     int volume = 0;
 
-    if (mNesEnvelope->GetState() != NesEnvelope::ENV_OFF) {
+    if (mEnvs.arp.GetState() != NesEnvelope::ENV_OFF) {
       int period = GetPeriod();
       volume = GetVolume();
 
-      int periodHi = (period >> 8) & 0x07;
       int periodLo = (period >> 0) & 0xff;
-      int deltaHi = periodHi - prevPeriodHi;
+      int periodHi = (period >> 8) & 0x07;
+      int deltaHi = periodHi - mPrevPeriodHi;
 
       if (deltaHi != 0) {
         // TODO: get smoothVibrato from some setting
-        bool smoothVibrato = false;
+        bool smoothVibrato = true;
         if (smoothVibrato && abs(deltaHi) == 1 && !IsSeeking()) {
           // Blaarg's smooth vibrato technique using the sweep
           // to avoid resetting the phase. Cool stuff.
@@ -136,25 +151,25 @@ public:
           // reset frame counter in case it was about to clock
           mNesApu->write_register(NesApu::APU_FRAME_CNT, 0x40);
           // be sure low 8 bits of timer period are $FF ($00 when negative)
-          mNesApu->write_register(NesApu::APU_PL1_LO + regOffset, deltaHi < 0 ? 0x00 : 0xff);
+          mNesApu->write_register(NesApu::APU_PL1_LO + mRegOffset, deltaHi < 0 ? 0x00 : 0xff);
           // sweep enabled, shift = 7, set negative flag.
-          mNesApu->write_register(NesApu::APU_PL1_SWEEP + regOffset, deltaHi < 0 ? 0x8f : 0x87);
+          mNesApu->write_register(NesApu::APU_PL1_SWEEP + mRegOffset, deltaHi < 0 ? 0x8f : 0x87);
           // clock sweep immediately
           mNesApu->write_register(NesApu::APU_FRAME_CNT, 0xc0);
           // disable sweep
-          mNesApu->write_register(NesApu::APU_PL1_SWEEP + regOffset, 0x08);
+          mNesApu->write_register(NesApu::APU_PL1_SWEEP + mRegOffset, 0x08);
         } else {
-          mNesApu->write_register(NesApu::APU_PL1_HI + regOffset, periodHi);
+          mNesApu->write_register(NesApu::APU_PL1_HI + mRegOffset, periodHi);
         }
 
-        prevPeriodHi = periodHi;
+        mPrevPeriodHi = periodHi;
       }
 
-      mNesApu->write_register(NesApu::APU_PL1_LO + regOffset, periodLo);
+      mNesApu->write_register(NesApu::APU_PL1_LO + mRegOffset, periodLo);
     }
 
     // duty is shifted to 2 most significant bits
-    mNesApu->write_register(NesApu::APU_PL1_VOL + regOffset, (duty << 6) | 0x30 | volume);
+    mNesApu->write_register(NesApu::APU_PL1_VOL + mRegOffset, (duty << 6) | 0x30 | volume);
     NesChannel::UpdateAPU();
   }
 };
@@ -162,9 +177,13 @@ public:
 class NesChannelTriangle : public NesChannel
 {
 public:
-  NesChannelTriangle(shared_ptr<Simple_Apu> nesApu, NesApu::Channel type, shared_ptr<NesEnvelope> nesEnvelope) : NesChannel(nesApu, type, nesEnvelope) {}
+  NesChannelTriangle(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
 
-  void UpdateAPU() {
+  virtual int GetVolume() {
+    return mEnvs.volume.GetValueAndAdvance() ? 0xff : 0x80;
+  }
+
+  virtual void UpdateAPU() {
 //            if (note.IsStop)
 //            {
 //                WriteRegister(NesApu.APU_TRI_LINEAR, 0x80);
@@ -180,14 +199,15 @@ public:
 //
 //            base.UpdateAPU();
 
-    if (mNesEnvelope->GetState() != NesEnvelope::ENV_OFF) {
+    if (mEnvs.volume.GetState() != NesEnvelope::ENV_OFF) {
+      int volume = GetVolume();
       int period = GetPeriod();
       int periodLo = (period >> 0) & 0xff;
       int periodHi = (period >> 8) & 0x07;
 
       mNesApu->write_register(NesApu::APU_TRI_LO, periodLo);
       mNesApu->write_register(NesApu::APU_TRI_HI, periodHi);
-      mNesApu->write_register(NesApu::APU_TRI_LINEAR, 0xff);
+      mNesApu->write_register(NesApu::APU_TRI_LINEAR, 0x80 | volume);
     } else {
       mNesApu->write_register(NesApu::APU_TRI_LINEAR, 0x80);
     }
@@ -196,6 +216,96 @@ public:
   }
 };
 
+class NesChannelNoise : public NesChannel
+{
+public:
+  NesChannelNoise(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
 
+  virtual int GetPeriod() {
+    return (mBaseNote + mEnvs.arp.GetValueAndAdvance()) & 0x0f;
+  }
+
+  virtual void UpdateAPU() {
+    if (mEnvs.volume.GetState() != NesEnvelope::ENV_OFF) {
+      int volume = GetVolume();
+      int duty = GetDuty();
+      int period = GetPeriod();
+
+      mNesApu->write_register(NesApu::APU_NOISE_LO, (period  ^ 0x0f) | ((duty << 7) & 0x80));
+      mNesApu->write_register(NesApu::APU_NOISE_VOL, 0xf0 | volume);
+    } else {
+      mNesApu->write_register(NesApu::APU_NOISE_VOL, 0xf0);
+    }
+
+    NesChannel::UpdateAPU();
+  }
+};
+
+class NesChannelDpcm : public NesChannel
+{
+public:
+  NesChannelDpcm(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, shared_ptr<NesDpcm> nesDpcm)
+  : NesChannel(nesApu, channel)
+  , mNesDpcm(nesDpcm)
+  {}
+
+  virtual void Trigger(int baseNote, double velocity) {
+    mBaseNote = baseNote;
+    mDpcmTriggered = true;
+  }
+
+  virtual void Release() {
+    mDpcmReleased = true;
+  }
+
+  virtual void UpdateAPU() {
+    if (mDpcmTriggered) {
+      mDpcmTriggered = false;
+      mNesApu->write_register(NesApu::APU_SND_CHN, 0x0f);
+
+      auto patch = mNesDpcm->GetDpcmPatchForNote(mBaseNote);
+
+      if (patch && patch->dpcmSample) {
+        /// $4012 AAAA.AAAA
+        /// Sample address = %11AAAAAA.AA000000 = $C000 + (A * 64)
+        mNesApu->write_register(NesApu::APU_DMC_START, mNesDpcm->GetAddressForSample(patch->dpcmSample) / 64); // >> 6
+        /// $4013 LLLL.LLLL
+        /// Sample length = %0000LLLL.LLLL0001 = (L * 16) + 1 bytes.
+        /// Specify the length of the sample in 16 byte increments by writing a value to $4013.
+        /// i.e. $01 means 17 bytes length and $02 means 33 bytes.
+        /// For an actual length of 513 bytes, write 32 to $4013. (513 - 1)/16 = 32
+        mNesApu->write_register(NesApu::APU_DMC_LEN, patch->dpcmSample->length() >> 4); // >> 4
+        mNesApu->write_register(NesApu::APU_DMC_FREQ, patch->pitch | (patch->loop ? 0x40 /* 0100 0000 */ : 0x00));
+        mNesApu->write_register(NesApu::APU_DMC_RAW, 32); // Starting sample
+        mNesApu->write_register(NesApu::APU_SND_CHN, 0x1f); // 0001 1111
+      }
+    }
+    if (mDpcmReleased) {
+      mDpcmReleased = false;
+      mNesApu->write_register(NesApu::APU_SND_CHN, 0x0f);
+    }
+
+    NesChannel::UpdateAPU();
+  }
+//  uint8_t* mDpcmData;
+  shared_ptr<NesDpcm> mNesDpcm;
+protected:
+  bool mDpcmTriggered;
+  bool mDpcmReleased;
+};
+
+
+
+struct NesChannels {
+  NesChannels(NesChannelPulse p1, NesChannelPulse p2, NesChannelTriangle t, NesChannelNoise n, NesChannelDpcm d) :
+    pulse1(p1), pulse2(p2), triangle(t), noise(n), dpcm(d) {}
+  NesChannelPulse pulse1;
+  NesChannelPulse pulse2;
+  NesChannelTriangle triangle;
+  NesChannelNoise noise;
+  NesChannelDpcm dpcm;
+
+  array<NesChannel*, 5> allChannels {&pulse1, &pulse2, &triangle, &noise, &dpcm};
+};
 
 #endif /* NesChannelState_h */
