@@ -47,11 +47,6 @@ public:
       NesVoice<T>* voice = new NesVoice<T>(nesApu, mNesChannels);
       mSynth.AddVoice(voice, 0);
 
-//      mNesEnvelope1 = &(nesChannels->pulse1.mEnvs.volume);
-//      mNesEnvelope2 = &(nesChannels->pulse1.mEnvs.duty);
-//      mNesEnvelope3 = &(nesChannels->pulse1.mEnvs.arp);
-//      mNesEnvelope4 = &(nesChannels->pulse1.mEnvs.pitch);
-
     // some MidiSynth API examples:
     // mSynth.SetKeyToPitchFn([](int k){return (k - 69.)/24.;}); // quarter-tone scale
     // mSynth.SetNoteGlideTime(0.5); // portamento
@@ -160,34 +155,6 @@ public:
         break;
       case kParamGain:
         mParamsToSmooth[kModGainSmoother] = (T) value / 100.;
-        break;
-      case kParamSustain:
-        mParamsToSmooth[kModSustainSmoother] = (T) value / 100.;
-        break;
-      case kParamAttack:
-      case kParamDecay:
-      case kParamRelease:
-      {
-        EEnvStage stage = static_cast<EEnvStage>(EEnvStage::kAttack + (paramIdx - kParamAttack));
-        mSynth.ForEachVoice([stage, value](SynthVoice& voice) {
-          dynamic_cast<NesVoice<T>&>(voice).mAMPEnv.SetStageTime(stage, value);
-        });
-        break;
-      }
-      case kParamLFODepth:
-        mLFO.SetScalar(value / 100.);
-        break;
-      case kParamLFORateTempo:
-        mLFO.SetQNScalarFromDivision(static_cast<int>(value));
-        break;
-      case kParamLFORateHz:
-        mLFO.SetFreqCPS(value);
-        break;
-      case kParamLFORateMode:
-        mLFO.SetRateMode(value > 0.5);
-        break;
-      case kParamLFOShape:
-        mLFO.SetShape(static_cast<int>(value));
         break;
 
       case kParamPulse1Enabled:

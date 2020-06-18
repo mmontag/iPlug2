@@ -12,21 +12,12 @@ enum EParams
 {
   kParamGain = 0,
   kParamNoteGlideTime,
-  kParamAttack,
-  kParamDecay,
-  kParamSustain,
-  kParamRelease,
-  kParamLFOShape,
-  kParamLFORateHz,
-  kParamLFORateTempo,
-  kParamLFORateMode,
-  kParamLFODepth,
+
   kParamPulse1Enabled,
   kParamPulse2Enabled,
   kParamTriangleEnabled,
   kParamNoiseEnabled,
   kParamDpcmEnabled,
-
 
   kParamEnv1LoopPoint,
   kParamEnv1RelPoint,
@@ -62,11 +53,7 @@ enum EParams
 
 enum EControlTags
 {
-  kCtrlTagMeter = 0,
-  kCtrlTagLFOVis,
-  kCtrlTagScope,
-  kCtrlTagRTText,
-  kCtrlTagKeyboard,
+  kCtrlTagKeyboard = 0,
   kCtrlTagBender,
   kCtrlTagEnvelope1,
   kCtrlTagEnvelope2,
@@ -97,8 +84,6 @@ public:
 
 private:
   ChipSmasherDSP<sample> mDSP {1};
-  IPeakSender<2> mMeterSender;
-  ISender<1> mLFOVisSender;
   ISender<1, 8, int> mEnvelopeVisSender;
 #endif
 };

@@ -155,8 +155,8 @@ public:
 //  static array<array<ushort, 97>, 8> NoteTableN163;
 
   enum Channel {
-    Square1 = 0,
-    Square2 = 1,
+    Pulse1 = 0,
+    Pulse2 = 1,
     Triangle = 2,
     Noise = 3,
     Dpcm = 4,
