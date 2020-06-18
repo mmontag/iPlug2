@@ -3,7 +3,10 @@
 #include "IPlug_include_in_plug_hdr.h"
 #include "IControls.h"
 
-const int kNumPrograms = 1;
+const int kNumPrograms = 8;
+
+const int kEnvelopeSteps = 64;
+const int kNumEnvParams = 68;
 
 enum EParams
 {
@@ -18,7 +21,38 @@ enum EParams
   kParamLFORateTempo,
   kParamLFORateMode,
   kParamLFODepth,
-  kNumParams
+  kParamPulse1Enabled,
+  kParamPulse2Enabled,
+  kParamTriangleEnabled,
+  kParamNoiseEnabled,
+  kParamDpcmEnabled,
+
+
+  kParamEnv1LoopPoint,
+  kParamEnv1RelPoint,
+  kParamEnv1Length,
+  kParamEnv1SpeedDiv,
+
+  kParamEnv2LoopPoint,
+  kParamEnv2RelPoint,
+  kParamEnv2Length,
+  kParamEnv2SpeedDiv,
+
+  kParamEnv3LoopPoint,
+  kParamEnv3RelPoint,
+  kParamEnv3Length,
+  kParamEnv3SpeedDiv,
+
+  kParamEnv4LoopPoint,
+  kParamEnv4RelPoint,
+  kParamEnv4Length,
+  kParamEnv4SpeedDiv,
+
+  kParamEnv1,
+  kParamEnv2 = kParamEnv1 + kEnvelopeSteps,
+  kParamEnv3 = kParamEnv2 + kEnvelopeSteps,
+  kParamEnv4 = kParamEnv3 + kEnvelopeSteps,
+  kNumParams = kParamEnv4 + kEnvelopeSteps
 };
 
 #if IPLUG_DSP
@@ -34,6 +68,11 @@ enum EControlTags
   kCtrlTagRTText,
   kCtrlTagKeyboard,
   kCtrlTagBender,
+  kCtrlTagEnvelope1,
+  kCtrlTagEnvelope2,
+  kCtrlTagEnvelope3,
+  kCtrlTagEnvelope4,
+  kCtrlTagDpcmEditor,
   kNumCtrlTags
 };
 
@@ -54,9 +93,12 @@ public:
   void OnIdle() override;
   bool OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData) override;
 
+  bool SerializeState(IByteChunk &chunk) const override;
+
 private:
-  ChipSmasherDSP<sample> mDSP {16};
+  ChipSmasherDSP<sample> mDSP {1};
   IPeakSender<2> mMeterSender;
   ISender<1> mLFOVisSender;
+  ISender<1, 8, int> mEnvelopeVisSender;
 #endif
 };
