@@ -12,6 +12,7 @@
 #include "NesDpcm.h"
 #include "NesEnvelope.h"
 #include <algorithm>
+#include <utility>
 
 using namespace std;
 
@@ -25,13 +26,13 @@ struct Note {
 class NesChannel
 {
 public:
-  NesChannel(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes = NesEnvelopes()) // TODO: pal, numN163Channels
-  {
-    mNesApu = nesApu;
-    mEnvs = nesEnvelopes;
-    mChannel = channel;
-    mNoteTable = NesApu::GetNoteTableForChannel(channel);
-  }
+  NesChannel(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes)
+  : mNesApu(std::move(nesApu))
+  , mEnvs(nesEnvelopes)
+  , mChannel(channel)
+  , mNoteTable(NesApu::GetNoteTableForChannel(channel))
+  // TODO: pal, numN163Channels
+  {}
 
   virtual int GetPeriod() {
     int arpNote = mEnvs.arp.GetValueAndAdvance();
@@ -76,7 +77,22 @@ public:
     mEnvs.pitch.Release();
     mEnvs.duty.Release();
   }
-//protected:
+
+  virtual void Serialize(iplug::IByteChunk &chunk) {
+    for (auto env : mEnvs.allEnvs) {
+      env->Serialize(chunk);
+    }
+  }
+
+  virtual int Deserialize(const iplug::IByteChunk &chunk, int startPos) {
+    int pos = startPos;
+    for (auto env : mEnvs.allEnvs) {
+      pos = env->Deserialize(chunk, pos);
+    }
+    return pos;
+  }
+
+  //protected:
   shared_ptr<Simple_Apu> mNesApu;
   NesApu::Channel mChannel;
   array<ushort, 97> mNoteTable;
@@ -93,7 +109,7 @@ public:
   int mRegOffset = 0;
   int mPrevPeriodHi = 1000;
 
-  NesChannelPulse(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes)
+  NesChannelPulse(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes)
   {
     // 0x4000 for Square1, 0x4004 for Square2
     mRegOffset = mChannel * 4;
@@ -148,7 +164,7 @@ public:
 class NesChannelTriangle : public NesChannel
 {
 public:
-  NesChannelTriangle(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
+  NesChannelTriangle(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
 
   virtual int GetVolume() {
     return mEnvs.volume.GetValueAndAdvance() ? 0xff : 0x80;
@@ -175,7 +191,7 @@ public:
 class NesChannelNoise : public NesChannel
 {
 public:
-  NesChannelNoise(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, NesEnvelopes nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
+  NesChannelNoise(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
 
   virtual int GetPeriod() {
     return (mBaseNote + mEnvs.arp.GetValueAndAdvance()) & 0x0f;
@@ -201,8 +217,8 @@ class NesChannelDpcm : public NesChannel
 {
 public:
   NesChannelDpcm(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, shared_ptr<NesDpcm> nesDpcm)
-  : NesChannel(nesApu, channel)
-  , mNesDpcm(nesDpcm)
+  : NesChannel(nesApu, channel, NesEnvelopes())
+  , mNesDpcm(std::move(nesDpcm))
   {}
 
   virtual void Trigger(int baseNote, double velocity) {
@@ -221,16 +237,17 @@ public:
 
       auto patch = mNesDpcm->GetDpcmPatchForNote(mBaseNote);
 
-      if (patch && patch->dpcmSample) {
+      if (patch && patch->sampleIdx > -1) {
+        auto sample = mNesDpcm->mSamples[patch->sampleIdx];
         /// $4012 AAAA.AAAA
         /// Sample address = %11AAAAAA.AA000000 = $C000 + (A * 64)
-        mNesApu->write_register(NesApu::APU_DMC_START, mNesDpcm->GetAddressForSample(patch->dpcmSample) / 64); // >> 6
+        mNesApu->write_register(NesApu::APU_DMC_START, mNesDpcm->GetAddressForSample(sample) / 64); // >> 6
         /// $4013 LLLL.LLLL
         /// Sample length = %0000LLLL.LLLL0001 = (L * 16) + 1 bytes.
         /// Specify the length of the sample in 16 byte increments by writing a value to $4013.
         /// i.e. $01 means 17 bytes length and $02 means 33 bytes.
         /// For an actual length of 513 bytes, write 32 to $4013. (513 - 1)/16 = 32
-        mNesApu->write_register(NesApu::APU_DMC_LEN, patch->dpcmSample->length() >> 4); // >> 4
+        mNesApu->write_register(NesApu::APU_DMC_LEN, sample->length() >> 4); // >> 4
         mNesApu->write_register(NesApu::APU_DMC_FREQ, patch->pitch | (patch->loop ? 0x40 /* 0100 0000 */ : 0x00));
         mNesApu->write_register(NesApu::APU_DMC_RAW, 32); // Starting sample
         mNesApu->write_register(NesApu::APU_SND_CHN, 0x1f); // 0001 1111
@@ -243,7 +260,15 @@ public:
 
     NesChannel::UpdateAPU();
   }
-//  uint8_t* mDpcmData;
+
+  void Serialize(iplug::IByteChunk &chunk) override {
+    mNesDpcm->Serialize(chunk);
+  }
+
+  int Deserialize(const iplug::IByteChunk &chunk, int startPos) override {
+    return mNesDpcm->Deserialize(chunk, startPos);
+  }
+
   shared_ptr<NesDpcm> mNesDpcm;
 protected:
   bool mDpcmTriggered;
@@ -253,15 +278,21 @@ protected:
 
 
 struct NesChannels {
-  NesChannels(NesChannelPulse p1, NesChannelPulse p2, NesChannelTriangle t, NesChannelNoise n, NesChannelDpcm d) :
-    pulse1(p1), pulse2(p2), triangle(t), noise(n), dpcm(d) {}
+  explicit NesChannels(NesChannelPulse p1, NesChannelPulse p2, NesChannelTriangle t, NesChannelNoise n, NesChannelDpcm d)
+    : pulse1(std::move(p1))
+    , pulse2(std::move(p2))
+    , triangle(std::move(t))
+    , noise(std::move(n))
+    , dpcm(std::move(d))
+    , allChannels({&pulse1, &pulse2, &triangle, &noise, &dpcm}) {}
+
   NesChannelPulse pulse1;
   NesChannelPulse pulse2;
   NesChannelTriangle triangle;
   NesChannelNoise noise;
   NesChannelDpcm dpcm;
 
-  array<NesChannel*, 5> allChannels {&pulse1, &pulse2, &triangle, &noise, &dpcm};
+  vector<NesChannel*> allChannels;
 };
 
 #endif /* NesChannelState_h */

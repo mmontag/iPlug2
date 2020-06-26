@@ -9,8 +9,9 @@
 #define NesEnvelope_h
 
 #include "ISender.h"
+#include "IPlugStructs.h"
 
-const int MAX_STEPS = 64;
+const int kMaxSteps = 64;
 
 class NesEnvelope {
 public:
@@ -20,11 +21,11 @@ public:
     ENV_OFF
   };
 
-  NesEnvelope(int defaultValue) {
+  NesEnvelope(int defaultValue, int minVal, int maxVal)
+  : mMinVal(minVal)
+  , mMaxVal(maxVal) {
     mValues.fill(defaultValue);
   }
-
-  NesEnvelope(shared_ptr<array<int, 64>> values) : mNesEnvValues(values) {}
 
   void Trigger() {
     mState = ENV_INITIAL;
@@ -47,8 +48,7 @@ public:
       case ENV_INITIAL:
         if (mStep >= mReleasePoint * mSpeedDivider)
           mStep = mLoopPoint * mSpeedDivider;
-      // break;
-      // Fall through
+      // Fall through - no break
       case ENV_RELEASE:
         if (mStep >= mLength * mSpeedDivider)
           mState = ENV_OFF;
@@ -69,44 +69,90 @@ public:
   }
 
   void SetLength(int length) {
-    mLength = clamp(length, 1, 64);
+    mLength = clamp(length, 1, kMaxSteps);
 //    if (mReleasePoint > mLength) mReleasePoint = mLength;
 //    if (mLoopPoint > mLength) mLoopPoint = mLength;
   }
 
   void SetSpeedDivider(int speedDivider) {
     int newSpeedDivider = clamp(speedDivider, 1, 8);
-    mStep = min(mStep * (float)newSpeedDivider / mSpeedDivider, 64 * newSpeedDivider - 1);
+    mStep = min(mStep * (float)newSpeedDivider / mSpeedDivider, kMaxSteps * newSpeedDivider - 1);
     mSpeedDivider = newSpeedDivider;
   }
 
   void SetLoop(int loopPoint) {
-    mLoopPoint = clamp(loopPoint, 0, 64);
+    mLoopPoint = clamp(loopPoint, 0, kMaxSteps);
     if (mReleasePoint < mLoopPoint) mReleasePoint = mLoopPoint;
   }
 
   void SetRelease(int releasePoint) {
-    mReleasePoint = clamp(releasePoint, 1, 64);
+    mReleasePoint = clamp(releasePoint, 1, kMaxSteps);
     if (mLoopPoint > mReleasePoint) mLoopPoint = mReleasePoint;
   }
-  array<int, 64> mValues;
 
+  void Serialize(iplug::IByteChunk &chunk) const {
+//    printf("sizeof mValues %d\n", sizeof(mValues));
+    chunk.PutBytes(mValues.data(), sizeof(mValues));
+  }
+
+  int Deserialize(const iplug::IByteChunk &chunk, int startPos = 0) {
+    int pos = startPos;
+    printf("Deserializing envelope from chunk %p, size %d, startPos %d\n", &chunk, chunk.Size(), startPos);
+    for (int i = 0; i < kMaxSteps; i++) {
+      int* addr = &mValues[i];
+//      printf("-- Chunk pos: %d, Target address %p\n", startPos + i * 4, addr);
+      pos = chunk.Get(addr, pos);
+//      pos = chunk.Get(addr, startPos + i * 4);
+    }
+    return pos;
+  }
+
+  array<int, kMaxSteps> mValues = {0};
   int mStep = 0;
   int mLoopPoint = 15;
   int mReleasePoint = 16;
   int mLength = 16;
   int mSpeedDivider = 1;
+  int mMinVal = 0;
+  int mMaxVal = 15;
 
 protected:
   NesEnvelope::State mState = ENV_OFF;
-  shared_ptr<array<int, 64>> mNesEnvValues;
 };
 
 struct NesEnvelopes {
-  NesEnvelope arp{0};
-  NesEnvelope pitch{0};
-  NesEnvelope volume{15};
-  NesEnvelope duty{2};
+  NesEnvelopes()
+    : arp(NesEnvelope(0, -12, 12))
+    , pitch(NesEnvelope(0, -12, 12))
+    , volume(NesEnvelope(15, 0, 15))
+    , duty(NesEnvelope(2, 0, 7))
+    , allEnvs({&arp, &pitch, &volume, &duty}) {
+    printf("Initialized NesEnvelopes\n");
+  }
+
+  NesEnvelopes(const NesEnvelopes& other)
+    : arp(other.arp)
+    , pitch(other.pitch)
+    , volume(other.volume)
+    , duty(other.duty)
+    , allEnvs({&arp, &pitch, &volume, &duty}) {
+    printf("Copied NesEnvelopes\n");
+  }
+
+  ~NesEnvelopes() {
+    printf("Destroying NesEnvelopes\n");
+  }
+  // TODO: allEnvs() runtime fn
+
+//  NesEnvelopes(const NesEnvelopes&) = delete;
+//  NesEnvelopes& operator= (const NesEnvelopes&) = delete;
+
+  NesEnvelope arp;
+  NesEnvelope pitch;
+  NesEnvelope volume;
+  NesEnvelope duty;
+
+  array<NesEnvelope*, 4> allEnvs;
 };
 
 #endif /* NesEnvelope_h */
