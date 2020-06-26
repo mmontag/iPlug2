@@ -9,9 +9,11 @@
 #define StepSequencer_h
 
 
+#include <utility>
+
 #include "IControl.h"
 
-using StepSeqFunc = std::function<void(int step, int value)>;
+using StepSeqFunc = std::function<void(int stepIdx, float value)>;
 
 /** A base class for mult-strip/slider controls, such as multi-sliders, meters */
 class StepSequencer : public IControl, public IVectorBase {
@@ -26,12 +28,11 @@ public:
    * @param direction The direction of the sliders
    * @param minSliderValue Defines the minimum value of each slider
    * @param maxSliderValue Defines the maximum value of each slider */
-  StepSequencer(const IRECT& bounds, const char* label, const IVStyle& style = DEFAULT_STYLE, float grain = 0.001f, int lowParamIdx = -1, int maxNSliders = 1, EDirection dir = EDirection::Vertical, float minSliderValue = 0.f, float maxSliderValue = 1.f)
+  StepSequencer(const IRECT &bounds, const char *label, const IVStyle &style = DEFAULT_STYLE, int maxNSliders = 1,
+                float grain = 1.f, StepSeqFunc aF = nullptr)
   : IControl(bounds)
   , IVectorBase(style)
-  , mMinSliderValue(minSliderValue)
-  , mMaxSliderValue(maxSliderValue)
-  , mDirection(dir)
+  , mActionFunc(std::move(aF))
   , mGrain(grain)
   , mLength(maxNSliders)
   {
@@ -41,7 +42,7 @@ public:
 
     for (int i = 0; i < maxNSliders; i++)
     {
-      SetParamIdx(lowParamIdx + i, i); // or kNoParameter
+//      SetParamIdx(lowParamIdx + i, i); // or kNoParameter
       mSliderBounds.Add(IRECT());
     }
 
@@ -92,7 +93,7 @@ public:
     for (int ch = 0; ch < nVals; ch++)
     {
       mSliderBounds.Get()[ch] = bounds.SubRect(EDirection(!dir), mLength, ch).
-                                     GetPadded(0, -mSliderPadding * (float) dir, -mSliderPadding * (float) !dir, -mSliderPadding);
+                                     GetPadded(0, -mSliderPadding * (float) dir, -mSliderPadding * (float) !dir, 0);
     }
   }
 
@@ -131,8 +132,8 @@ public:
       g.StartLayer(this, mInsetBounds);
 
       // Draw grid lines
-      float nSteps = (mMaxSliderValue - mMinSliderValue)/mGrain;
-      IRECT line = mInsetBounds.GetFromTop(1);
+      int nSteps = ceil(1.f/mGrain);
+      IRECT line = mInsetBounds.GetFromTop(1).GetTranslated(0, -0.5f);
       float gapHeight = mInsetBounds.H() / nSteps;
       for (int i = 1; i < nSteps; i++) {
         g.FillRect(COLOR_WHITE.WithOpacity(0.1), line.GetTranslated(0.f, i * gapHeight), &mBlend);;
@@ -234,12 +235,12 @@ public:
       mSliderHit = sliderTest;
 
       float oldValue = GetValue(sliderTest);
-      float newValue = mMinSliderValue + Clip(value, 0.f, 1.f) * (mMaxSliderValue - mMinSliderValue);
+      float newValue = Clip(value, 0.f, 1.f);
       if (newValue != oldValue) {
         mLayerSliders->Invalidate();
         SetValue(newValue, sliderTest);
         OnNewValue(sliderTest, newValue);
-        SetDirty(true, mSliderHit); // will send all param vals parameter value to delegate
+        SetDirty(false);
       }
 
       if (mPrevSliderHit != -1)
@@ -269,7 +270,7 @@ public:
               mLayerSliders->Invalidate();
               SetValue(newValue, i);
               OnNewValue(i, newValue);
-              SetDirty(true, i);
+              SetDirty(false);
             }
           }
         }
@@ -296,7 +297,11 @@ public:
   }
 
   //override to do something when an individual slider is dragged
-  virtual void OnNewValue(int sliderIdx, double val) {}
+  virtual void OnNewValue(int sliderIdx, double val) {
+    if (mActionFunc) {
+      mActionFunc(sliderIdx, val);
+    }
+  }
 
   virtual void DrawSlider(IGraphics& g, const IRECT& r, int chIdx)
   {
@@ -311,20 +316,23 @@ public:
     SetDirty(false);
   }
 
+  void SetActionFunc(const StepSeqFunc &mActionFunc) {
+    StepSequencer::mActionFunc = mActionFunc;
+  }
+
 protected:
   EDirection mDirection = EDirection::Vertical;
   WDL_TypedBuf<IRECT> mSliderBounds;
   IRECT mInsetBounds;
   IRECT mLoopInfoBounds;
-  float mMinSliderValue;
-  float mMaxSliderValue;
   float mSliderPadding = 0.;
   float mGrain = 0.001f;
   int mHighlightIdx = -1;
   int mLoopPoint = 0;
   int mReleasePoint = 0;
   int mLength = 1;
-
+  StepSeqFunc mActionFunc;
+protected:
   ILayerPtr mLayerGrid;
   ILayerPtr mLayerPlayhead;
   ILayerPtr mLayerSliders;
