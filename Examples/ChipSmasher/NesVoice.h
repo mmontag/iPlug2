@@ -24,7 +24,7 @@ enum EModulations
 template<typename T>
 class NesVoice : public SynthVoice   {
 public:
-  NesVoice(shared_ptr<Simple_Apu> nesApu, shared_ptr<NesChannels> nesChannels) :
+  NesVoice(shared_ptr<Simple_Apu> nesApu, vector<NesChannel*> &nesChannels) :
   mAMPEnv("gain", [&](){ mOSC.Reset(); }), // capture ok on RT thread?
   mNesChannels(nesChannels),
   mNesApu(nesApu)
@@ -34,9 +34,17 @@ public:
     // (0) Square 1, (1) Square 2, (2) Triangle, (3) Noise, (4) DMC.
   }
 
-  void SetChannelEnabled(NesApu::Channel channel, bool enabled) {
-    mNesApu->enable_channel(channel, enabled);
+  NesVoice(shared_ptr<Simple_Apu> nesApu, NesChannel* nesChannel) :
+  mAMPEnv("gain", [&](){ mOSC.Reset(); }), // capture ok on RT thread?
+  mNesChannels({nesChannel}),
+  mNesApu(nesApu)
+  {
+    DBGMSG("new Voice: %i control inputs.\n", static_cast<int>(mInputs.size()));
+    // The oscillators are indexed as follows:
+    // (0) Square 1, (1) Square 2, (2) Triangle, (3) Noise, (4) DMC.
   }
+
+
 
   bool GetBusy() const override
   {
@@ -49,14 +57,14 @@ public:
   {
     DBGMSG("Trigger mKey %d - level %0.2f\n", mKey, level);
 
-    for (auto channel : mNesChannels->allChannels) {
+    for (auto channel : mNesChannels) {
       channel->Trigger(mKey, level);
     }
   }
 
   void Release() override
   {
-    for (auto channel : mNesChannels->allChannels) {
+    for (auto channel : mNesChannels) {
       channel->Release();
     }
   }
@@ -65,23 +73,8 @@ public:
   {
     // inputs to the synthesizer can just fetch a value every block, like this:
     double pitchBend = mInputs[kVoiceControlPitchBend].endValue;
-    for (auto channel : mNesChannels->allChannels) {
+    for (auto channel : mNesChannels) {
       channel->SetPitchBend(pitchBend);
-    }
-
-    while (mNesApu->samples_avail() < nFrames) {
-      for (auto channel : mNesChannels->allChannels) {
-        channel->UpdateAPU();
-      }
-      mNesApu->end_frame();
-    }
-
-    mNesApu->read_samples(nesBuffer, nFrames);
-    for (int i = 0; i < nFrames; i++) {
-      int idx = i + startIdx;
-      T smpl = nesBuffer[i] / 32767.0;
-      outputs[0][idx] += smpl;
-      outputs[1][idx] += smpl;
     }
   }
 
@@ -105,9 +98,9 @@ public:
 public:
   FastSinOscillator<T> mOSC;
   ADSREnvelope<T> mAMPEnv;
-  shared_ptr<NesChannels> mNesChannels;
+  vector<NesChannel*> mNesChannels;
   shared_ptr<Simple_Apu> mNesApu;
-  int16_t nesBuffer[32768];
+//  int16_t nesBuffer[32768];
 
 };
 

@@ -25,7 +25,7 @@ public:
 
 //    for (auto i = 0; i < nVoices; i++)
 //    {
-      shared_ptr<Simple_Apu> nesApu = make_shared<Simple_Apu>();
+      shared_ptr<Simple_Apu> nesApu = mNesApu = make_shared<Simple_Apu>();
       shared_ptr<NesDpcm> nesDpcm = make_shared<NesDpcm>();
 
       NesApu::InitializeNoteTables(); // TODO: kill this singleton stuff
@@ -43,9 +43,18 @@ public:
       );
       SetActiveChannel(NesApu::Channel::Pulse1);
 
+      // Omni Mode
       // add a voice to Zone 0.
-      NesVoice<T>* voice = new NesVoice<T>(nesApu, mNesChannels);
+      NesVoice<T>* voice = new NesVoice<T>(nesApu, mNesChannels->allChannels);
       mSynth.AddVoice(voice, 0);
+
+      for (int i = 0; i < mNesChannels->allChannels.size(); i++) {
+        auto channelVoice = new NesVoice<T>(nesApu, mNesChannels->allChannels[i]);
+        auto channelSynth = new MidiSynth(VoiceAllocator::kPolyModeMono, MidiSynth::kDefaultBlockSize);
+        mChannelSynths.emplace_back(channelSynth);
+        mChannelSynths[i]->AddVoice(channelVoice, 0);
+//        mNesChannels->allChannels[i];
+      }
 
     // some MidiSynth API examples:
     // mSynth.SetKeyToPitchFn([](int k){return (k - 69.)/24.;}); // quarter-tone scale
@@ -81,6 +90,11 @@ public:
 //    });
   }
 
+
+  void SetChannelEnabled(NesApu::Channel channel, bool enabled) {
+    mNesApu->enable_channel(channel, enabled);
+  }
+
   void ProcessBlock(T** inputs, T** outputs, int nOutputs, int nFrames, double qnPos = 0., bool transportIsRunning = false, double tempo = 120.)
   {
     // clear outputs
@@ -90,9 +104,33 @@ public:
     }
     
     mParamSmoother.ProcessBlock(mParamsToSmooth, mModulations.GetList(), nFrames);
-    mLFO.ProcessBlock(mModulations.GetList()[kModLFO], nFrames, qnPos, transportIsRunning, tempo);
-    mSynth.ProcessBlock(mModulations.GetList(), outputs, 0, nOutputs, nFrames);
-    
+//    mLFO.ProcessBlock(mModulations.GetList()[kModLFO], nFrames, qnPos, transportIsRunning, tempo);
+
+
+    if (mOmniMode) {
+      mSynth.ProcessBlock(mModulations.GetList(), outputs, 0, nOutputs, nFrames);
+    } else {
+      for (auto &synth : mChannelSynths) {
+        synth->ProcessBlock(mModulations.GetList(), outputs, 0, nOutputs, nFrames);
+      }
+    }
+
+    // NO IDDEA WHAT IM DOING
+    while (mNesApu->samples_avail() < nFrames) {
+      for (auto channel : mNesChannels->allChannels) {
+        channel->UpdateAPU();
+      }
+      mNesApu->end_frame();
+    }
+
+    mNesApu->read_samples(mNesBuffer, nFrames);
+    for (int i = 0; i < nFrames; i++) {
+      int idx = i;
+      T smpl = mNesBuffer[i] / 32767.0;
+      outputs[0][idx] += smpl;
+      outputs[1][idx] += smpl;
+    }
+
     for(int s=0; s < nFrames;s++)
     {
       T smoothedGain = mModulations.GetList()[kModGainSmoother][s];
@@ -103,9 +141,17 @@ public:
 
   void Reset(double sampleRate, int blockSize)
   {
-    mSynth.SetSampleRateAndBlockSize(sampleRate, blockSize);
-    mSynth.Reset();
-    mLFO.SetSampleRate(sampleRate);
+    if (mOmniMode) {
+      mSynth.SetSampleRateAndBlockSize(sampleRate, blockSize);
+      mSynth.Reset();
+    } else {
+      for (auto &synth : mChannelSynths) {
+        synth->SetSampleRateAndBlockSize(sampleRate, blockSize);
+        synth->Reset();
+      }
+    }
+
+//    mLFO.SetSampleRate(sampleRate);
     mModulationsData.Resize(blockSize * kNumModulations);
     mModulations.Empty();
     
@@ -118,36 +164,40 @@ public:
   void ProcessMidiMsg(const IMidiMsg& msg)
   {
     // MIDI event is queued; Corresponds to InstrumentPlayer.PlayNote() in Famistudio
-    mSynth.AddMidiMsgToQueue(msg);
+    if (mOmniMode) {
+      mSynth.AddMidiMsgToQueue(msg);
+    } else {
+      mChannelSynths[msg.Channel() % mChannelSynths.size()]->AddMidiMsgToQueue(msg);
+    }
   }
 
   void SetParam(int paramIdx, double value)
   {
-    using EEnvStage = ADSREnvelope<sample>::EStage;
+//    using EEnvStage = ADSREnvelope<sample>::EStage;
 
-    if (paramIdx >= kParamEnv1 && paramIdx < kParamEnv2) {
-      int step = paramIdx - kParamEnv1;
-      mNesEnvelope1->mValues[step] = (int)value;
-      return;
-    }
-
-    if (paramIdx >= kParamEnv2 && paramIdx < kParamEnv3) {
-      int step = paramIdx - kParamEnv2;
-      mNesEnvelope2->mValues[step] = (int)value;
-      return;
-    }
-
-    if (paramIdx >= kParamEnv3 && paramIdx < kParamEnv4) {
-      int step = paramIdx - kParamEnv3;
-      mNesEnvelope3->mValues[step] = (int)value;
-      return;
-    }
-
-    if (paramIdx >= kParamEnv4 && paramIdx < kNumParams) {
-      int step = paramIdx - kParamEnv4;
-      mNesEnvelope4->mValues[step] = (int)value;
-      return;
-    }
+//    if (paramIdx >= kParamEnv1 && paramIdx < kParamEnv2) {
+//      int step = paramIdx - kParamEnv1;
+//      mNesEnvelope1->mValues[step] = (int)value;
+//      return;
+//    }
+//
+//    if (paramIdx >= kParamEnv2 && paramIdx < kParamEnv3) {
+//      int step = paramIdx - kParamEnv2;
+//      mNesEnvelope2->mValues[step] = (int)value;
+//      return;
+//    }
+//
+//    if (paramIdx >= kParamEnv3 && paramIdx < kParamEnv4) {
+//      int step = paramIdx - kParamEnv3;
+//      mNesEnvelope3->mValues[step] = (int)value;
+//      return;
+//    }
+//
+//    if (paramIdx >= kParamEnv4 && paramIdx < kNumParams) {
+//      int step = paramIdx - kParamEnv4;
+//      mNesEnvelope4->mValues[step] = (int)value;
+//      return;
+//    }
 
     switch (paramIdx) {
       case kParamNoteGlideTime:
@@ -157,30 +207,26 @@ public:
         mParamsToSmooth[kModGainSmoother] = (T) value / 100.;
         break;
 
+      case kParamOmniMode:
+        mOmniMode = value > 0.5;
+        mSynth.Reset();
+        for (auto synth : mChannelSynths) synth->Reset();
+        break;
+
       case kParamPulse1Enabled:
-        mSynth.ForEachVoice([value](SynthVoice& voice) {
-          dynamic_cast<NesVoice<T>&>(voice).SetChannelEnabled(NesApu::Channel::Pulse1, value > 0.5);
-        });
+        SetChannelEnabled(NesApu::Channel::Pulse1, value > 0.5);
         break;
       case kParamPulse2Enabled:
-        mSynth.ForEachVoice([value](SynthVoice& voice) {
-          dynamic_cast<NesVoice<T>&>(voice).SetChannelEnabled(NesApu::Channel::Pulse2, value > 0.5);
-        });
+        SetChannelEnabled(NesApu::Channel::Pulse2, value > 0.5);
         break;
       case kParamTriangleEnabled:
-        mSynth.ForEachVoice([value](SynthVoice& voice) {
-          dynamic_cast<NesVoice<T>&>(voice).SetChannelEnabled(NesApu::Channel::Triangle, value > 0.5);
-        });
+        SetChannelEnabled(NesApu::Channel::Triangle, value > 0.5);
         break;
       case kParamNoiseEnabled:
-        mSynth.ForEachVoice([value](SynthVoice& voice) {
-          dynamic_cast<NesVoice<T>&>(voice).SetChannelEnabled(NesApu::Channel::Noise, value > 0.5);
-        });
+        SetChannelEnabled(NesApu::Channel::Noise, value > 0.5);
         break;
       case kParamDpcmEnabled:
-        mSynth.ForEachVoice([value](SynthVoice& voice) {
-          dynamic_cast<NesVoice<T>&>(voice).SetChannelEnabled(NesApu::Channel::Dpcm, value > 0.5);
-        });
+        SetChannelEnabled(NesApu::Channel::Dpcm, value > 0.5);
         break;
 
       case kParamEnv1LoopPoint:
@@ -246,7 +292,7 @@ public:
   WDL_PtrList<T> mModulations; // Ptrlist for global modulations
   LogParamSmooth<T, kNumModulations> mParamSmoother;
   sample mParamsToSmooth[kNumModulations];
-  LFO<T> mLFO;
+//  LFO<T> mLFO;
 
   NesEnvelope* mNesEnvelope1;
   NesEnvelope* mNesEnvelope2;
@@ -254,5 +300,9 @@ public:
   NesEnvelope* mNesEnvelope4;
 
   shared_ptr<NesChannels> mNesChannels;
-  shared_ptr<NesChannel> mActiveNesChannel;
+  vector<MidiSynth*> mChannelSynths;
+  shared_ptr<Simple_Apu> mNesApu;
+  int16_t mNesBuffer[32768];
+  bool mOmniMode;
+//  shared_ptr<NesChannel> mActiveNesChannel;
 };

@@ -14,6 +14,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
   GetParam(kParamTriangleEnabled)->InitBool("Triangle Enabled", false);
   GetParam(kParamNoiseEnabled)->InitBool("Noise Enabled", false);
   GetParam(kParamDpcmEnabled)->InitBool("DPCM Enabled", false);
+  GetParam(kParamOmniMode)->InitBool("Omni Mode Enabled", true);
 
   GetParam(kParamEnv1LoopPoint)->InitInt("Env 1 Loop",    15, 0, 64, "", IParam::kFlagStepped);
   GetParam(kParamEnv1RelPoint)->InitInt( "Env 1 Release", 16, 0, 64, "", IParam::kFlagStepped);
@@ -34,23 +35,6 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
   GetParam(kParamEnv4RelPoint)->InitInt( "Env 4 Release", 16, 0, 64, "", IParam::kFlagStepped);
   GetParam(kParamEnv4Length)->InitInt(   "Env 4 Length",  16, 0, 64, "", IParam::kFlagStepped);
   GetParam(kParamEnv4SpeedDiv)->InitInt( "Env 4 Speed",   1,  1, 8,  "", IParam::kFlagStepped);
-
-  // Envelope steps
-  for (int i = 0; i < 64; i++) {
-    GetParam(kParamEnv1 + i)->InitInt("Volume Env", 15, 0, 15);
-  }
-
-  for (int i = 0; i < 64; i++) {
-    GetParam(kParamEnv2 + i)->InitInt("Duty Env", 2, 0, 7);
-  }
-
-  for (int i = 0; i < 64; i++) {
-    GetParam(kParamEnv3 + i)->InitInt("Arp Env", 0, -12, 12);
-  }
-
-  for (int i = 0; i < 64; i++) {
-    GetParam(kParamEnv4 + i)->InitInt("Fine Pitch Env", 0, -12, 12);
-  }
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -81,7 +65,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
         DEFAULT_X2COLOR, // Extra 2
         DEFAULT_X3COLOR  // Extra 3
       }, // Colors
-      IText(11.f, DEFAULT_TEXT_FGCOLOR, "Univers", EAlign::Near, EVAlign::Top), // Label text
+      IText(11.f, DEFAULT_TEXT_FGCOLOR, "Univers", EAlign::Near, EVAlign::Middle), // Label text
       IText(15.f, DEFAULT_TEXT_FGCOLOR, "Normal", EAlign::Center, EVAlign::Middle),
       false, // Hide mouse
       true,  // Show frame
@@ -117,10 +101,9 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
 //    pGraphics->EnableLiveEdit(true);
     pGraphics->LoadFont("Roboto-Regular", ROBOTO_FN);
     pGraphics->LoadFont("Univers", UNIVERS_FN);
-//    pGraphics->LoadFont("Inter-Medium", INTER_MEDIUM_FN);
-//    pGraphics->LoadFont("Inter-Bold", INTER_BOLD_FN);
     pGraphics->LoadFont("Normal", NORMAL_FN);
     pGraphics->LoadFont("Bold", BOLD_FN);
+    pGraphics->EnableTooltips(true);
 
     IRECT b = pGraphics->GetBounds();
     pGraphics->AttachControl(
@@ -130,21 +113,63 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
                                                             IColorStop(IColor::FromColorCodeStr("#828282"), 1)
                                                           }))
     );
+    b = pGraphics->GetBounds().GetPadded(PLUG_PADDING);
 
-    b = pGraphics->GetBounds().GetPadded(-20.f);
+#pragma mark - Keyboard
+
     IRECT keyboardBounds = b.GetFromBottom(120);
     IRECT wheelsBounds = keyboardBounds.ReduceFromLeft(100.f);
     pGraphics->AttachControl(new IVKeyboardControl(keyboardBounds, 24, 96, false), kCtrlTagKeyboard);
     pGraphics->AttachControl(new IWheelControl(wheelsBounds.FracRectHorizontal(0.5)), kCtrlTagBender);
-    pGraphics->AttachControl(new IWheelControl(wheelsBounds.FracRectHorizontal(0.5, true), IMidiMsg::EControlChangeMsg::kModWheel));
+    pGraphics->AttachControl(new IWheelControl(wheelsBounds.FracRectHorizontal(0.5, true),
+                                               IMidiMsg::EControlChangeMsg::kModWheel), kCtrlTagModWheel);
+
+#pragma mark - Channel Panel
 
     b = b.GetReducedFromBottom(137);
-    const IRECT channelPanel = b.GetFromLeft(84);
-    pGraphics->AttachControl(new IVToggleControl(channelPanel.GetGridCell(0,6,1).GetReducedFromBottom(16.f), kParamPulse1Enabled,   "Pulse 1",  style), kNoTag, "NES");
-    pGraphics->AttachControl(new IVToggleControl(channelPanel.GetGridCell(1,6,1).GetReducedFromBottom(16.f), kParamPulse2Enabled,   "Pulse 2",  style), kNoTag, "NES");
-    pGraphics->AttachControl(new IVToggleControl(channelPanel.GetGridCell(2,6,1).GetReducedFromBottom(16.f), kParamTriangleEnabled, "Triangle", style), kNoTag, "NES");
-    pGraphics->AttachControl(new IVToggleControl(channelPanel.GetGridCell(3,6,1).GetReducedFromBottom(16.f), kParamNoiseEnabled,    "Noise",    style), kNoTag, "NES");
-    pGraphics->AttachControl(new IVToggleControl(channelPanel.GetGridCell(4,6,1).GetReducedFromBottom(16.f), kParamDpcmEnabled,     "DPCM",     style), kNoTag, "NES");
+    IRECT channelPanel = b.GetFromLeft(84);
+
+    IRECT channelButtonRect = channelPanel.GetFromTop(40.f);
+    for (auto paramTuples : vector<tuple<int, NesApu::Channel, string>>{{kParamPulse1Enabled,   NesApu::Channel::Pulse1,   "Pulse 1" },
+                                                                        {kParamPulse2Enabled,   NesApu::Channel::Pulse2,   "Pulse 2" },
+                                                                        {kParamTriangleEnabled, NesApu::Channel::Triangle, "Triangle"},
+                                                                        {kParamNoiseEnabled,    NesApu::Channel::Noise,    "Noise"   },
+                                                                        {kParamDpcmEnabled,     NesApu::Channel::Dpcm,     "DPCM"    }}) {
+      auto param = get<int>(paramTuples);
+      auto channel = get<NesApu::Channel>(paramTuples);
+      auto label = get<string>(paramTuples).c_str();
+      pGraphics->AttachControl(new IVToggleControl(channelButtonRect.GetFromRight(40.f), param, label, noLabelStyle), kNoTag, "NES");
+      pGraphics->AttachControl(new IVButtonControl(channelButtonRect.GetReducedFromRight(40.f), [this, channel](IControl* pCaller){
+        mDSP.SetActiveChannel(channel);
+        UpdateStepSequencers();
+        SendCurrentParamValuesFromDelegate();
+      }, label, style), kNoTag, "NES");
+      channelButtonRect.Translate(0, channelButtonRect.H());
+    }
+
+    IVToggleControl *const omniButton = new IVToggleControl(channelButtonRect, kParamOmniMode, "Omni Mode", style);
+    omniButton->SetTooltip("When Omni Mode is on, all NES channels receive events from all MIDI channels. "
+                           "When Omni Mode is off, each MIDI channel is mapped to a different NES channel. "
+                           "If your plugin host doesn't support multichannel plugins, "
+                           "or if you don't know what this means, leave Omni Mode on.");
+    pGraphics->AttachControl(omniButton, kNoTag, "NES");
+    channelButtonRect.Translate(0, channelButtonRect.H());
+
+    pGraphics->AttachControl(new IVButtonControl(channelButtonRect, [=](IControl *pCaller) {
+      static bool hide = false;
+      pGraphics->GetControlWithTag(kCtrlTagKeyboard)->Hide(hide = !hide);
+      pGraphics->GetControlWithTag(kCtrlTagBender)->Hide(hide = !hide);
+      pGraphics->GetControlWithTag(kCtrlTagModWheel)->Hide(hide = !hide);
+      pGraphics->Resize(PLUG_WIDTH, hide ? PLUG_HEIGHT - keyboardBounds.H() - PLUG_PADDING : PLUG_HEIGHT, pGraphics->GetDrawScale());
+    }, "Toggle Keyboard", DEFAULT_STYLE.WithColor(kFG, COLOR_WHITE)));
+
+#pragma mark - Presets
+
+    MakeDefaultPreset(nullptr, kNumPrograms);
+
+    pGraphics->AttachControl(new IVBakedPresetManagerControl(b.ReduceFromTop(40).GetFromRight(300), style.WithLabelText({15.f, EVAlign::Middle}))); // "./presets", "nesvst"));
+
+#pragma mark - Channel Chooser
 
     pGraphics->AttachControl(new IVButtonControl(channelPanel.GetGridCell(5,6,1), [pGraphics, this](IControl* pCaller){
       SplashClickActionFunc(pCaller);
@@ -178,68 +203,9 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
               });
             }
 
-            // update all envelope values
-            auto ss1 = dynamic_cast<StepSequencer*>(GetUI()->GetControlWithTag(kCtrlTagEnvelope1));
-            const NesEnvelope* env1 = mDSP.mNesEnvelope1;
-            for (int i = 0; i < 64; i++) {
-              GetParam(kParamEnv1 + i)->Set(env1->mValues[i]);
-            }
-            ss1->SetLoopPoint(   env1->mLoopPoint);
-            ss1->SetReleasePoint(env1->mReleasePoint);
-            ss1->SetLength(      env1->mLength);
 
-            auto ss2 = dynamic_cast<StepSequencer*>(GetUI()->GetControlWithTag(kCtrlTagEnvelope2));
-            const NesEnvelope* env2 = mDSP.mNesEnvelope2;
-            for (int i = 0; i < 64; i++) {
-              GetParam(kParamEnv2 + i)->Set(env2->mValues[i]);
-            }
-            ss2->SetLoopPoint(   env2->mLoopPoint);
-            ss2->SetReleasePoint(env2->mReleasePoint);
-            ss2->SetLength(      env2->mLength);
 
-            auto ss3 = dynamic_cast<StepSequencer*>(GetUI()->GetControlWithTag(kCtrlTagEnvelope3));
-            const NesEnvelope* env3 = mDSP.mNesEnvelope3;
-            for (int i = 0; i < 64; i++) {
-              GetParam(kParamEnv3 + i)->Set(env3->mValues[i]);
-            }
-            ss3->SetLoopPoint(   env3->mLoopPoint);
-            ss3->SetReleasePoint(env3->mReleasePoint);
-            ss3->SetLength(      env3->mLength);
-
-            auto ss4 = dynamic_cast<StepSequencer*>(GetUI()->GetControlWithTag(kCtrlTagEnvelope4));
-            const NesEnvelope* env4 = mDSP.mNesEnvelope4;
-            for (int i = 0; i < 64; i++) {
-              GetParam(kParamEnv4 + i)->Set(env4->mValues[i]);
-            }
-            ss4->SetLoopPoint(   env4->mLoopPoint);
-            ss4->SetReleasePoint(env4->mReleasePoint);
-            ss4->SetLength(      env4->mLength);
-
-            // update all env params sliders/knobs
-            GetParam(kParamEnv1LoopPoint)->Set(env1->mLoopPoint);
-            GetParam(kParamEnv2LoopPoint)->Set(env2->mLoopPoint);
-            GetParam(kParamEnv3LoopPoint)->Set(env3->mLoopPoint);
-            GetParam(kParamEnv4LoopPoint)->Set(env4->mLoopPoint);
-
-            GetParam(kParamEnv1RelPoint)->Set(env1->mReleasePoint);
-            GetParam(kParamEnv2RelPoint)->Set(env2->mReleasePoint);
-            GetParam(kParamEnv3RelPoint)->Set(env3->mReleasePoint);
-            GetParam(kParamEnv4RelPoint)->Set(env4->mReleasePoint);
-
-            GetParam(kParamEnv1Length)->Set(env1->mLength);
-            GetParam(kParamEnv2Length)->Set(env2->mLength);
-            GetParam(kParamEnv3Length)->Set(env3->mLength);
-            GetParam(kParamEnv4Length)->Set(env4->mLength);
-
-            GetParam(kParamEnv1SpeedDiv)->Set(env1->mSpeedDivider);
-            GetParam(kParamEnv2SpeedDiv)->Set(env2->mSpeedDivider);
-            GetParam(kParamEnv3SpeedDiv)->Set(env3->mSpeedDivider);
-            GetParam(kParamEnv4SpeedDiv)->Set(env4->mSpeedDivider);
-
-            ss1->SetSlidersDirty();
-            ss2->SetSlidersDirty();
-            ss3->SetSlidersDirty();
-            ss4->SetSlidersDirty();
+            UpdateStepSequencers();
 
             SendCurrentParamValuesFromDelegate();
           }
@@ -250,10 +216,18 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       pGraphics->CreatePopupMenu(*pCaller, menu, x, y);
     }, "EDIT", style, false, true), kNoTag, "vcontrols");
 
+#pragma mark - Step Sequencers
+
     const IRECT envelopesPanel = b.GetReducedFromLeft(100).GetPadded(8);
 
-    auto createEnvelopePanel = [=](IRECT rect, const char* label, int envP, int lpP, int rpP, int lP, int sdP, int ctrlTag, IColor color) {
-      auto stepSeq = new StepSequencer(rect.GetReducedFromBottom(40), label, style.WithColor(kFG, color).WithColor(kBG, IColor::FromColorCodeStr("#141414")), 1.f/(GetParam(envP)->GetRange()), envP, 64);
+    auto createEnvelopePanel = [=](IRECT rect, const char* label, float minVal, float maxVal, NesEnvelope* nesEnv, int lpP, int rpP, int lP, int sdP, int ctrlTag, IColor color) {
+
+      auto stepSeq = new StepSequencer(rect.GetReducedFromBottom(40),
+                                       label,
+                                       style.WithColor(kFG, color).WithColor(kBG, IColor::FromColorCodeStr("#141414")),
+                                       64,
+                                       1.f/float(maxVal - minVal),
+                                       nullptr);
       pGraphics->AttachControl(stepSeq, ctrlTag, "StepSequencers");
 
       auto lpC = new IVSliderControl(rect.GetFromBottom(10).GetVShifted(-30), lpP, nullptr, noLabelStyle, true, EDirection::Horizontal, 1., 0, 5, false);
@@ -280,41 +254,16 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       pGraphics->AttachControl(new IVSliderControl(rect.GetFromBottom(10).GetVShifted(0), sdP, nullptr, noLabelStyle, true, EDirection::Horizontal, 1., 0, 5, false), kNoTag, "Sliders");
     };
 
-    createEnvelopePanel(envelopesPanel.GetGridCell(0,2,2).GetPadded(-8), "VOLUME",     kParamEnv1, kParamEnv1LoopPoint, kParamEnv1RelPoint, kParamEnv1Length, kParamEnv1SpeedDiv, kCtrlTagEnvelope1, IColor::FromColorCodeStr("#CC2626"));
-    createEnvelopePanel(envelopesPanel.GetGridCell(1,2,2).GetPadded(-8), "DUTY",       kParamEnv2, kParamEnv2LoopPoint, kParamEnv2RelPoint, kParamEnv2Length, kParamEnv2SpeedDiv, kCtrlTagEnvelope2, IColor::FromColorCodeStr("#DE5E33"));
-    createEnvelopePanel(envelopesPanel.GetGridCell(2,2,2).GetPadded(-8), "PITCH",      kParamEnv3, kParamEnv3LoopPoint, kParamEnv3RelPoint, kParamEnv3Length, kParamEnv3SpeedDiv, kCtrlTagEnvelope3, IColor::FromColorCodeStr("#53AD8E"));
-    createEnvelopePanel(envelopesPanel.GetGridCell(3,2,2).GetPadded(-8), "FINE PITCH", kParamEnv4, kParamEnv4LoopPoint, kParamEnv4RelPoint, kParamEnv4Length, kParamEnv4SpeedDiv, kCtrlTagEnvelope4, IColor::FromColorCodeStr("#747ACD"));
+    createEnvelopePanel(envelopesPanel.GetGridCell(0,2,2).GetPadded(-8), "VOLUME",     0,   15, mDSP.mNesEnvelope1, kParamEnv1LoopPoint, kParamEnv1RelPoint, kParamEnv1Length, kParamEnv1SpeedDiv, kCtrlTagEnvelope1, IColor::FromColorCodeStr("#CC2626"));
+    createEnvelopePanel(envelopesPanel.GetGridCell(1,2,2).GetPadded(-8), "DUTY",       0,   7,  mDSP.mNesEnvelope2, kParamEnv2LoopPoint, kParamEnv2RelPoint, kParamEnv2Length, kParamEnv2SpeedDiv, kCtrlTagEnvelope2, IColor::FromColorCodeStr("#DE5E33"));
+    createEnvelopePanel(envelopesPanel.GetGridCell(2,2,2).GetPadded(-8), "PITCH",      -12, 12, mDSP.mNesEnvelope3, kParamEnv3LoopPoint, kParamEnv3RelPoint, kParamEnv3Length, kParamEnv3SpeedDiv, kCtrlTagEnvelope3, IColor::FromColorCodeStr("#53AD8E"));
+    createEnvelopePanel(envelopesPanel.GetGridCell(3,2,2).GetPadded(-8), "FINE PITCH", -12, 12, mDSP.mNesEnvelope4, kParamEnv4LoopPoint, kParamEnv4RelPoint, kParamEnv4Length, kParamEnv4SpeedDiv, kCtrlTagEnvelope4, IColor::FromColorCodeStr("#747ACD"));
 
+    UpdateStepSequencers();
 
     auto dpcmEditor = new IDpcmEditorControl(envelopesPanel, style, mDSP.mNesChannels->dpcm.mNesDpcm);
     pGraphics->AttachControl(dpcmEditor, kCtrlTagDpcmEditor, "DpcmEditor");
     dpcmEditor->Hide(true);
-
-# pragma mark - Presets
-
-
-    MakePresetFromNamedParams("Basic Square",   1, kParamPulse1Enabled,   1);
-    MakePresetFromNamedParams("Basic Triangle", 1, kParamTriangleEnabled, 1);
-    MakePresetFromNamedParams("Basic Noise",    1, kParamNoiseEnabled,    1);
-    MakePresetFromNamedParams("Basic DPCM",     1, kParamDpcmEnabled,     1);
-
-    pGraphics->AttachControl(new IVBakedPresetManagerControl(IRECT{0,0,300,40}, style)); // "./presets", "nesvst"));
-    pGraphics->AttachControl(new IVButtonControl(IRECT{300,0,350,40}, [this](IControl* control) {
-//      IByteCh
-//      SerializeParams();
-//      DumpPresetBlob("presets", );
-      const char** x{};
-      DumpPresetSrcCode("presets.c", x);
-    }, "Save", style));
-
-//    pGraphics->AttachControl(new IVButtonControl(keyboardBounds.GetFromTRHC(200, 30).GetTranslated(0, -30), SplashClickActionFunc,
-//      "Show/Hide Keyboard", DEFAULT_STYLE.WithColor(kFG, COLOR_WHITE).WithLabelText({15.f, EVAlign::Middle})))->SetAnimationEndActionFunction(
-//      [pGraphics](IControl* pCaller) {
-//        static bool hide = false;
-//        pGraphics->GetControlWithTag(kCtrlTagKeyboard)->Hide(hide = !hide);
-//        pGraphics->Resize(PLUG_WIDTH, hide ? PLUG_HEIGHT / 2 : PLUG_HEIGHT, pGraphics->GetDrawScale());
-//    });
-
 
     pGraphics->SetQwertyMidiKeyHandlerFunc([pGraphics](const IMidiMsg &msg) {
       dynamic_cast<IVKeyboardControl *>(
@@ -324,6 +273,56 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
 
   };
 #endif
+}
+
+void ChipSmasher::OnPresetsModified() {
+  printf("- PRESETS MODIFIED -\n");
+  UpdateStepSequencers();
+  GetUI()->ForControlInGroup("DpcmEditor", [](IControl &control) { control.SetDirty(false); });
+
+  IPluginBase::OnPresetsModified();
+}
+
+void ChipSmasher::UpdateStepSequencers() {
+  // update all envelope values
+  for (auto ctrlToEnv : vector<pair<int, NesEnvelope *>>{{kCtrlTagEnvelope1, mDSP.mNesEnvelope1},
+                                                         {kCtrlTagEnvelope2, mDSP.mNesEnvelope2},
+                                                         {kCtrlTagEnvelope3, mDSP.mNesEnvelope3},
+                                                         {kCtrlTagEnvelope4, mDSP.mNesEnvelope4}}) {
+    auto seq = dynamic_cast<StepSequencer *>(GetUI()->GetControlWithTag(ctrlToEnv.first));
+    auto nesEnv = ctrlToEnv.second;
+    for (int i = 0; i < 64; i++) {
+      seq->SetValue(float(nesEnv->mValues[i] - nesEnv->mMinVal) / float(nesEnv->mMaxVal - nesEnv->mMinVal), i);
+    }
+    seq->SetLoopPoint(nesEnv->mLoopPoint);
+    seq->SetReleasePoint(nesEnv->mReleasePoint);
+    seq->SetLength(nesEnv->mLength);
+    seq->SetActionFunc([nesEnv](int stepIdx, float value) {
+      nesEnv->mValues[stepIdx] = (int)iplug::Lerp((float)nesEnv->mMinVal, (float)nesEnv->mMaxVal, value);
+    });
+    seq->SetSlidersDirty();
+  }
+
+  // update all env params sliders/knobs
+  GetParam(kParamEnv1LoopPoint)->Set(mDSP.mNesEnvelope1->mLoopPoint);
+  GetParam(kParamEnv2LoopPoint)->Set(mDSP.mNesEnvelope2->mLoopPoint);
+  GetParam(kParamEnv3LoopPoint)->Set(mDSP.mNesEnvelope3->mLoopPoint);
+  GetParam(kParamEnv4LoopPoint)->Set(mDSP.mNesEnvelope4->mLoopPoint);
+
+  GetParam(kParamEnv1RelPoint)->Set(mDSP.mNesEnvelope1->mReleasePoint);
+  GetParam(kParamEnv2RelPoint)->Set(mDSP.mNesEnvelope2->mReleasePoint);
+  GetParam(kParamEnv3RelPoint)->Set(mDSP.mNesEnvelope3->mReleasePoint);
+  GetParam(kParamEnv4RelPoint)->Set(mDSP.mNesEnvelope4->mReleasePoint);
+
+  GetParam(kParamEnv1Length)->Set(mDSP.mNesEnvelope1->mLength);
+  GetParam(kParamEnv2Length)->Set(mDSP.mNesEnvelope2->mLength);
+  GetParam(kParamEnv3Length)->Set(mDSP.mNesEnvelope3->mLength);
+  GetParam(kParamEnv4Length)->Set(mDSP.mNesEnvelope4->mLength);
+
+  GetParam(kParamEnv1SpeedDiv)->Set(mDSP.mNesEnvelope1->mSpeedDivider);
+  GetParam(kParamEnv2SpeedDiv)->Set(mDSP.mNesEnvelope2->mSpeedDivider);
+  GetParam(kParamEnv3SpeedDiv)->Set(mDSP.mNesEnvelope3->mSpeedDivider);
+  GetParam(kParamEnv4SpeedDiv)->Set(mDSP.mNesEnvelope4->mSpeedDivider);
 }
 
 #if IPLUG_DSP
@@ -381,7 +380,18 @@ void ChipSmasher::OnParamChange(int paramIdx)
 }
 
 bool ChipSmasher::SerializeState(IByteChunk &chunk) const {
+  for (auto channel : mDSP.mNesChannels->allChannels) {
+    channel->Serialize(chunk);
+  }
   return IPluginBase::SerializeState(chunk);
+}
+
+int ChipSmasher::UnserializeState(const IByteChunk &chunk, int startPos) {
+  int pos = startPos;
+  for (auto channel : mDSP.mNesChannels->allChannels) {
+    pos = channel->Deserialize(chunk, pos);
+  }
+  return IPluginBase::UnserializeState(chunk, pos);
 }
 
 bool ChipSmasher::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData)

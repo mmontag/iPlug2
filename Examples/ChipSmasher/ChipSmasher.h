@@ -12,6 +12,7 @@ enum EParams
 {
   kParamGain = 0,
   kParamNoteGlideTime,
+  kParamOmniMode,
 
   kParamPulse1Enabled,
   kParamPulse2Enabled,
@@ -38,12 +39,7 @@ enum EParams
   kParamEnv4RelPoint,
   kParamEnv4Length,
   kParamEnv4SpeedDiv,
-
-  kParamEnv1,
-  kParamEnv2 = kParamEnv1 + kEnvelopeSteps,
-  kParamEnv3 = kParamEnv2 + kEnvelopeSteps,
-  kParamEnv4 = kParamEnv3 + kEnvelopeSteps,
-  kNumParams = kParamEnv4 + kEnvelopeSteps
+  kNumParams
 };
 
 #if IPLUG_DSP
@@ -55,6 +51,7 @@ enum EControlTags
 {
   kCtrlTagKeyboard = 0,
   kCtrlTagBender,
+  kCtrlTagModWheel,
   kCtrlTagEnvelope1,
   kCtrlTagEnvelope2,
   kCtrlTagEnvelope3,
@@ -82,8 +79,14 @@ public:
 
   bool SerializeState(IByteChunk &chunk) const override;
 
+  void OnPresetsModified() override;
+
+  int UnserializeState(const IByteChunk &chunk, int startPos) override;
+
 private:
   ChipSmasherDSP<sample> mDSP {1};
   ISender<1, 8, int> mEnvelopeVisSender;
 #endif
+
+  void UpdateStepSequencers();
 };

@@ -30,7 +30,7 @@ public:
   , IVectorBase(style) {
     mSampleMenu.SetFunction([this](IPopupMenu* pMenu) {
       int idx = pMenu->GetChosenItemIdx();
-      mPatch->dpcmSample = mSamples.at(idx);
+      mPatch->sampleIdx = idx;
       GetUI()->ForControlInGroup("DpcmEditor", [](IControl &control) { control.SetDirty(false); });
     });
   }
@@ -45,7 +45,7 @@ public:
       auto sample = make_shared<NesDpcmSample>(vector<char>(istreambuf_iterator<char>(input), {}),
                                                filename.get_filepart());
       mSamples.push_back(sample);
-      mPatch->dpcmSample = sample;
+      mPatch->sampleIdx = mSamples.size() - 1;
     }
   }
 
@@ -128,8 +128,8 @@ protected:
 
 class IDpcmPatchRowControl : public IControl, public IVectorBase {
 public:
-  IDpcmPatchRowControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcmPatch> patch, function<void(IDpcmPatchRowControl*)> selectCb)
-    : IControl(bounds, nullptr), IVectorBase(style), mPatch(patch), mSelectCb(std::move(selectCb)) {
+  IDpcmPatchRowControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcmPatch> patch, vector<shared_ptr<NesDpcmSample>>& samples, function<void(IDpcmPatchRowControl*)> selectCb)
+    : IControl(bounds, nullptr), IVectorBase(style), mPatch(patch), mSamples(samples), mSelectCb(std::move(selectCb)) {
     mDblAsSingleClick = true;
     mRECT.PixelSnap();
   }
@@ -140,7 +140,7 @@ public:
     char patchStr[256];
     const IColor color = mIsSelected ? kBlack : kGreen;
     if (mPatch) {
-      const char *sampleName = mPatch->dpcmSample ? mPatch->dpcmSample->name.c_str() : "(No sample)";
+      const char *sampleName = mPatch->sampleIdx > -1 ? mSamples[mPatch->sampleIdx]->name.c_str() : "(No sample)";
       sprintf(patchStr, "%s (Pitch %d, Loop %d)", sampleName, mPatch->pitch, mPatch->loop);
       g.DrawText(mStyle.valueText.WithFGColor(color).WithAlign(EAlign::Near).WithVAlign(EVAlign::Middle).WithSize(15.f),
                  patchStr,
@@ -172,6 +172,7 @@ public:
   bool mIsSelected;
   shared_ptr<NesDpcmPatch> mPatch;
 protected:
+  vector<shared_ptr<NesDpcmSample>>& mSamples;
   function<void(IDpcmPatchRowControl*)> mSelectCb;
   bool mMouseDown;
 };
@@ -194,11 +195,11 @@ public:
 
   void OnAttached() override {
     GetUI()->AttachControl(new IVLabelControl(mRECT.GetFromTop(24.f), "DPCM Editor", mStyle), kNoTag, "DpcmEditor");
-    IRECT box = mRECT.GetReducedFromRight(128.f + 48.f).GetPadded(-2.f).GetFromTop(24.f).GetTranslated(0, 64.f);
+    IRECT box = mRECT.GetReducedFromRight(128.f + 48.f).GetPadded(-2.f).GetFromTop(24.f).GetTranslated(0, 24.f);
     int idx = 0;
     for (auto it = mNesDpcm->mNoteMap.rbegin(); it != mNesDpcm->mNoteMap.rend(); ++it) {
       auto patch = *it;
-      auto control = new IDpcmPatchRowControl(box, mStyle, patch, [this, patch](IDpcmPatchRowControl* c) {
+      auto control = new IDpcmPatchRowControl(box, mStyle, patch, mNesDpcm->mSamples, [this, patch](IDpcmPatchRowControl* c) {
         OnPatchSelected(c);
       });
       GetUI()->AttachControl(control, kNoTag, "DpcmEditor");
@@ -214,8 +215,9 @@ public:
   }
 
   void Draw(IGraphics &g) override {
-    auto mPatch = mPatchEditor->mPatch;
-    if (mPatch) {
+    printf("Drawing DPCM Editor for DPCM at %p\n", mNesDpcm.get());
+    auto patch = mPatchEditor->mPatch;
+    if (patch) {
       IRECT box = mRECT.GetFromBottom(128.f);
       IRECT glossBox = box.GetPadded(-2.f).FracRectVertical(0.5f, true);
       IPattern gloss = IPattern::CreateLinearGradient(glossBox, EDirection::Vertical,
@@ -225,13 +227,14 @@ public:
                                                       });
       g.FillRoundRect(kBlack, box, 3.f);
       box.Pad(-2.f);
-      if (mPatch->dpcmSample) {
+      if (patch->sampleIdx > -1) {
+        auto sample = mNesDpcm->mSamples[patch->sampleIdx];
         float x0 = box.L, y0 = box.MH();
         float x1 = 0, y1 = 0, x2 = 0, y2 = 0;
         float yStep = box.H() / 64.f; // DPCM range is 64 steps
-        float xStep = box.W() / (mPatch->dpcmSample->data.size() * 8.f); // bits
+        float xStep = box.W() / (sample->data.size() * 8.f); // bits
         bool clipped = false;
-        for (unsigned char byte : mPatch->dpcmSample->data) {
+        for (unsigned char byte : sample->data) {
           for (int i = 0; i < 8; i++) {
             g.DrawLine(clipped ? kRed : kGreen, x0 + x1, y0 + y1 * yStep, x0 + x2, y0 + y2 * yStep, nullptr, 1.f);
             x2 = x1;
