@@ -21,10 +21,11 @@
 #define PLUG_DOES_MIDI_IN 1
 #define PLUG_DOES_MIDI_OUT 1
 #define PLUG_DOES_MPE 1
-#define PLUG_DOES_STATE_CHUNKS 0
+#define PLUG_DOES_STATE_CHUNKS 1
 #define PLUG_HAS_UI 1
 #define PLUG_WIDTH 1024
 #define PLUG_HEIGHT 669
+#define PLUG_PADDING 20
 #define PLUG_FPS 60
 #define PLUG_SHARED_RESOURCES 0
 
@@ -50,3 +51,11 @@
 #define APP_SIGNAL_VECTOR_SIZE 64
 
 #define ROBOTO_FN "Roboto-Regular.ttf"
+
+#define NORMAL_FN "Inter-Regular.ttf"
+#define BOLD_FN "Inter-Bold.ttf"
+#define UNIVERS_FN "UniversBlackExt.ttf"
+
+#define IGRAPHICS_DISABLE_VSYNC 1
+#define IGRAPHICS_CVDISPLAYLINK 1
+#define NDEBUG 0
