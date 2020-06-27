@@ -113,7 +113,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
                                                             IColorStop(IColor::FromColorCodeStr("#828282"), 1)
                                                           }))
     );
-    b = pGraphics->GetBounds().GetPadded(PLUG_PADDING);
+    b = pGraphics->GetBounds().GetPadded(-PLUG_PADDING);
 
 #pragma mark - Keyboard
 
@@ -168,53 +168,6 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
     MakeDefaultPreset(nullptr, kNumPrograms);
 
     pGraphics->AttachControl(new IVBakedPresetManagerControl(b.ReduceFromTop(40).GetFromRight(300), style.WithLabelText({15.f, EVAlign::Middle}))); // "./presets", "nesvst"));
-
-#pragma mark - Channel Chooser
-
-    pGraphics->AttachControl(new IVButtonControl(channelPanel.GetGridCell(5,6,1), [pGraphics, this](IControl* pCaller){
-      SplashClickActionFunc(pCaller);
-      static IPopupMenu menu {"Menu", {"Pulse 1", "Pulse 2", "Triangle", "Noise", "DPCM"}, [pCaller, this](IPopupMenu* pMenu) {
-          auto* itemChosen = pMenu->GetChosenItem();
-          if(itemChosen) {
-            pCaller->As<IVButtonControl>()->SetValueStr(itemChosen->GetText());
-            switch(pMenu->GetChosenItemIdx()) {
-              case 0: mDSP.SetActiveChannel(NesApu::Channel::Pulse1); break;
-              case 1: mDSP.SetActiveChannel(NesApu::Channel::Pulse2); break;
-              case 2: mDSP.SetActiveChannel(NesApu::Channel::Triangle); break;
-              case 3: mDSP.SetActiveChannel(NesApu::Channel::Noise); break;
-              case 4: mDSP.SetActiveChannel(NesApu::Channel::Dpcm); break;
-            }
-
-            if (pMenu->GetChosenItemIdx() == 4) { // DPCM
-              GetUI()->GetControlWithTag(kCtrlTagDpcmEditor)->Hide(false);
-              GetUI()->ForControlInGroup("StepSequencers", [](IControl& control) {
-                control.Hide(true);
-              });
-              GetUI()->ForControlInGroup("Sliders", [](IControl& control) {
-                control.Hide(true);
-              });
-            } else {
-              GetUI()->GetControlWithTag(kCtrlTagDpcmEditor)->Hide(true);
-              GetUI()->ForControlInGroup("StepSequencers", [](IControl& control) {
-                control.Hide(false);
-              });
-              GetUI()->ForControlInGroup("Sliders", [](IControl& control) {
-                control.Hide(false);
-              });
-            }
-
-
-
-            UpdateStepSequencers();
-
-            SendCurrentParamValuesFromDelegate();
-          }
-        }
-      };
-      float x, y;
-      pGraphics->GetMouseDownPoint(x, y);
-      pGraphics->CreatePopupMenu(*pCaller, menu, x, y);
-    }, "EDIT", style, false, true), kNoTag, "vcontrols");
 
 #pragma mark - Step Sequencers
 
