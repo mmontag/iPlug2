@@ -1,18 +1,19 @@
 //
-//  IDpcmEditorControl.h
+//  DpcmEditorControl.h
 //  APP
 //
 //  Created by Matt Montag on 6/10/20.
 //
 
-#ifndef IDpcmEditorControl_h
-#define IDpcmEditorControl_h
+#ifndef DpcmEditorControl_h
+#define DpcmEditorControl_h
 
 #include <utility>
 #include <fstream>
 
 #include "IControl.h"
 #include "NesDpcm.h"
+#include "SpinnerControl.h"
 
 BEGIN_IPLUG_NAMESPACE
 BEGIN_IGRAPHICS_NAMESPACE
@@ -23,9 +24,9 @@ IColor kGreen = IColor::FromColorCode(0x6fCf97);
 IColor kRed = IColor::FromColorCode(0xc82010);
 IColor kBlack = IColor::FromColorCode(0x343434);
 
-class IDpcmPatchEditControl : public IControl, IVectorBase {
+class DpcmPatchEditControl : public IControl, IVectorBase {
 public:
-  IDpcmPatchEditControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcmPatch> patch, vector<shared_ptr<NesDpcmSample>>& samples)
+  DpcmPatchEditControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcmPatch> patch, vector<shared_ptr<NesDpcmSample>>& samples)
   : IControl(bounds, nullptr), mPatch(patch), mSamples(samples)
   , IVectorBase(style) {
     mSampleMenu.SetFunction([this](IPopupMenu* pMenu) {
@@ -45,7 +46,7 @@ public:
       auto sample = make_shared<NesDpcmSample>(vector<char>(istreambuf_iterator<char>(input), {}),
                                                filename.get_filepart());
       mSamples.push_back(sample);
-      mPatch->sampleIdx = mSamples.size() - 1;
+      mPatch->sampleIdx = (int)mSamples.size() - 1;
     }
   }
 
@@ -67,7 +68,7 @@ public:
     };
     GetUI()->AttachControl(new IVButtonControl(box,
                                                menuFunc,
-                                               "Edit Sample...",
+                                               "[ Choose Sample ]",
                                                mStyle),
                            kNoTag, "DpcmEditor");
     box.Translate(0, box.H() + bMargin);
@@ -76,22 +77,23 @@ public:
     GetUI()->AttachControl(new IVButtonControl(box,
                                                [&](IControl *control) { OnAddSampleClick(); },
                                                "Add Sample...",
-                                               mStyle),
-                           kNoTag, "DpcmEditor");
+                                               mStyle), kNoTag, "DpcmEditor");
     box.Translate(0, box.H() + bMargin);
     box.B += 16;
 
     // Pitch Spinner
     IActionFunction spinnerFunc = [this](IControl *control) {
-      mPatch->pitch = (int) dynamic_cast<IVNumberBoxControl *>(control)->GetRealValue();
+      mPatch->pitch = (int) dynamic_cast<SpinnerControl *>(control)->GetRealValue();
       GetUI()->ForControlInGroup("DpcmEditor", [](IControl &control) { control.SetDirty(false); });
     };
-    GetUI()->AttachControl(mPitch = new IVNumberBoxControl(box,
-                                                           kNoParameter,
-                                                           spinnerFunc,
-                                                           "Pitch",
-                                                           mStyle, 15.f, 0.f, 15.f),
-                           kNoTag, "DpcmEditor");
+    GetUI()->AttachControl(mPitch = new SpinnerControl(box,
+                                                       kNoParameter,
+                                                       spinnerFunc,
+                                                       "Pitch",
+                                                       mStyle,
+                                                       15.f,
+                                                       0.f,
+                                                       15.f), kNoTag, "DpcmEditor");
     box.Translate(0, box.H() + bMargin);
 
     // Loop Checkbox
@@ -121,14 +123,14 @@ public:
 protected:
   vector<shared_ptr<NesDpcmSample>>& mSamples;
   IPopupMenu mSampleMenu{"DPCM Sample"};
-  IVNumberBoxControl* mPitch;
+  SpinnerControl* mPitch;
   IVToggleControl* mLoop;
 
 };
 
-class IDpcmPatchRowControl : public IControl, public IVectorBase {
+class DpcmPatchRowControl : public IControl, public IVectorBase {
 public:
-  IDpcmPatchRowControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcmPatch> patch, vector<shared_ptr<NesDpcmSample>>& samples, function<void(IDpcmPatchRowControl*)> selectCb)
+  DpcmPatchRowControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcmPatch> patch, vector<shared_ptr<NesDpcmSample>>& samples, function<void(DpcmPatchRowControl*)> selectCb)
     : IControl(bounds, nullptr), IVectorBase(style), mPatch(patch), mSamples(samples), mSelectCb(std::move(selectCb)) {
     mDblAsSingleClick = true;
     mRECT.PixelSnap();
@@ -173,18 +175,18 @@ public:
   shared_ptr<NesDpcmPatch> mPatch;
 protected:
   vector<shared_ptr<NesDpcmSample>>& mSamples;
-  function<void(IDpcmPatchRowControl*)> mSelectCb;
+  function<void(DpcmPatchRowControl*)> mSelectCb;
   bool mMouseDown;
 };
 
-class IDpcmEditorControl : public IControl, public IVectorBase {
+class DpcmEditorControl : public IControl, public IVectorBase {
 public:
-  IDpcmEditorControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcm> nesDpcm)
+  DpcmEditorControl(const IRECT &bounds, const IVStyle &style, shared_ptr<NesDpcm> nesDpcm)
     : IControl(bounds, nullptr), IVectorBase(style), mNesDpcm(nesDpcm) {
     mDblAsSingleClick = true;
   }
 
-  void OnPatchSelected(IDpcmPatchRowControl* row) {
+  void OnPatchSelected(DpcmPatchRowControl* row) {
     // render the patch editor with this patch
     mPatchEditor->SetPatch(row->mPatch);
 
@@ -194,12 +196,11 @@ public:
   }
 
   void OnAttached() override {
-    GetUI()->AttachControl(new IVLabelControl(mRECT.GetFromTop(24.f), "DPCM Editor", mStyle), kNoTag, "DpcmEditor");
-    IRECT box = mRECT.GetReducedFromRight(128.f + 48.f).GetPadded(-2.f).GetFromTop(24.f).GetTranslated(0, 24.f);
+    IRECT box = mRECT.GetReducedFromRight(128.f + 48.f).GetPadded(-2.f).GetFromTop(24.f).GetTranslated(0, mTopMargin);
     int idx = 0;
     for (auto it = mNesDpcm->mNoteMap.rbegin(); it != mNesDpcm->mNoteMap.rend(); ++it) {
       auto patch = *it;
-      auto control = new IDpcmPatchRowControl(box, mStyle, patch, mNesDpcm->mSamples, [this, patch](IDpcmPatchRowControl* c) {
+      auto control = new DpcmPatchRowControl(box, mStyle, patch, mNesDpcm->mSamples, [this, patch](DpcmPatchRowControl* c) {
         OnPatchSelected(c);
       });
       GetUI()->AttachControl(control, kNoTag, "DpcmEditor");
@@ -207,17 +208,19 @@ public:
       box.Translate(0, 24.f);
       idx++;
     }
-    GetUI()->AttachControl(mPatchEditor = new IDpcmPatchEditControl(mRECT.GetFromRight(120.f).GetReducedFromBottom(100.f),
-                                                                    mStyle,
-                                                                    mNesDpcm->mNoteMap.at(0),
-                                                                    mNesDpcm->mSamples),
+    GetUI()->AttachControl(mPatchEditor = new DpcmPatchEditControl(mRECT.GetFromRight(120.f).GetReducedFromBottom(100.f),
+                                                                   mStyle,
+                                                                   mNesDpcm->mNoteMap.at(0),
+                                                                   mNesDpcm->mSamples),
                            kNoTag, "DpcmEditor");
   }
 
   void Draw(IGraphics &g) override {
+    // TODO: reduce redraws of entire DPCM editor
     printf("Drawing DPCM Editor for DPCM at %p\n", mNesDpcm.get());
     auto patch = mPatchEditor->mPatch;
     if (patch) {
+      // TODO: consistent naming of all IRECT variables in the project. box/b/r/rect/bounds...?
       IRECT box = mRECT.GetFromBottom(128.f);
       IRECT glossBox = box.GetPadded(-2.f).FracRectVertical(0.5f, true);
       IPattern gloss = IPattern::CreateLinearGradient(glossBox, EDirection::Vertical,
@@ -256,7 +259,7 @@ public:
     }
 
     // Patch list
-    IRECT box = mRECT.GetReducedFromBottom(136.f).GetReducedFromRight(128.f).GetReducedFromTop(64.f);
+    IRECT box = mRECT.GetReducedFromBottom(136.f).GetReducedFromRight(128.f).GetReducedFromTop(mTopMargin);
     IRECT glossBox = box.GetPadded(-2.f).FracRectVertical(0.5f, true);
     IPattern gloss = IPattern::CreateLinearGradient(glossBox, EDirection::Vertical,
                                                     {
@@ -272,12 +275,12 @@ public:
     IRECT pianoBox = box.GetFromRight(48.f).GetFromTop(rowHeight * 12);
     g.FillRect(IColor::FromColorCode(0xc4c4c4), pianoBox);
     g.DrawRect(kBlack, pianoBox, 0, 2.f);
-    g.DrawGrid(kBlack, pianoBox.GetTranslated(0, -2.f), 100, (pianoBox.H() + 4) / 7.f, nullptr, 2.f);
+    g.DrawGrid(kBlack, pianoBox.GetTranslated(0, -2.f), 100, (pianoBox.H() + 8.f) / 7.f, nullptr, 2.f);
     IRECT blackKeyBox = pianoBox.GetFromTop(rowHeight).GetFromLeft(rowHeight);
     for (auto i : {1, 3, 5, 8, 10}) {
       g.FillRect(kBlack, blackKeyBox.GetTranslated(0.f, rowHeight * i));
     }
-//    for (auto row : mPatchRows) row->Draw(g);
+
     g.PathRect(glossBox);
     g.PathFill(gloss);
 
@@ -293,11 +296,12 @@ public:
   }
 
   shared_ptr<NesDpcm> mNesDpcm;
-  IDpcmPatchEditControl *mPatchEditor;
-  vector<IDpcmPatchRowControl*> mPatchRows;
+  DpcmPatchEditControl *mPatchEditor;
+  vector<DpcmPatchRowControl*> mPatchRows;
+  float mTopMargin{24.0};
 };
 
 END_IGRAPHICS_NAMESPACE
 END_IPLUG_NAMESPACE
 
-#endif /* IDpcmEditorControl_h */
+#endif /* DpcmEditorControl_h */
