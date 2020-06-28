@@ -271,11 +271,6 @@ public:
     }
   }
 
-  static int DmcReadCallback(int* data, int addr) {
-    // TODO: dmc read callback
-    return 0;
-  }
-
   static void InitAndReset(shared_ptr<Simple_Apu> nesApu, int sampleRate, int expansion, int numExpansionChannels, int (*dmcCallback)( void*, cpu_addr_t )) {
     nesApu->sample_rate(sampleRate, false);
     nesApu->set_audio_expansion(expansion);

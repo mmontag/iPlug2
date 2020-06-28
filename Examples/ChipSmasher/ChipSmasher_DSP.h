@@ -19,12 +19,6 @@ public:
 #pragma mark -
   ChipSmasherDSP(int nVoices)
   {
-
-//    mNesEnvValues = make_shared<array<int, 64>>();
-//    mNesEnvelope1 = make_shared<NesEnvelope>(mNesEnvValues);
-
-//    for (auto i = 0; i < nVoices; i++)
-//    {
       shared_ptr<Simple_Apu> nesApu = mNesApu = make_shared<Simple_Apu>();
       shared_ptr<NesDpcm> nesDpcm = make_shared<NesDpcm>();
 
@@ -43,51 +37,49 @@ public:
       );
       SetActiveChannel(NesApu::Channel::Pulse1);
 
-      // Omni Mode
-      // add a voice to Zone 0.
-      NesVoice<T>* voice = new NesVoice<T>(nesApu, mNesChannels->allChannels);
+      // Omni Mode: one monophonic synth, broadcast on all NES channels
+      auto voice = new NesVoice<T>(nesApu, mNesChannels->allChannels);
       mSynth.AddVoice(voice, 0);
 
+      // Per-channel Mode: many monophonic synths, one for each NES channel
       for (int i = 0; i < mNesChannels->allChannels.size(); i++) {
-        auto channelVoice = new NesVoice<T>(nesApu, mNesChannels->allChannels[i]);
+        auto ch = vector<NesChannel *>{mNesChannels->allChannels[i]};
+        auto channelVoice = new NesVoice<T>(nesApu, ch);
         auto channelSynth = new MidiSynth(VoiceAllocator::kPolyModeMono, MidiSynth::kDefaultBlockSize);
         mChannelSynths.emplace_back(channelSynth);
         mChannelSynths[i]->AddVoice(channelVoice, 0);
-//        mNesChannels->allChannels[i];
       }
 
-    // some MidiSynth API examples:
-    // mSynth.SetKeyToPitchFn([](int k){return (k - 69.)/24.;}); // quarter-tone scale
-    // mSynth.SetNoteGlideTime(0.5); // portamento
+      // TODO: Paraphonic mode? (one synth with several voices; assign each voice to a different NES channel)
+
+      // TODO: Portamento?
+      // mSynth.SetNoteGlideTime(0.5); // portamento
   }
 
   void SetActiveChannel(NesApu::Channel channel) {
-//    mSynth.ForEachVoice([=](SynthVoice& v) {
-//      auto voice = dynamic_cast<NesVoice<T>&>(v);
-      NesChannel* ch = &mNesChannels->pulse1;
-      switch (channel) {
-        default:
-        case NesApu::Channel::Pulse1:
-          ch = &mNesChannels->pulse1;
-          break;
-        case NesApu::Channel::Pulse2:
-          ch = &mNesChannels->pulse2;
-          break;
-        case NesApu::Channel::Triangle:
-          ch = &mNesChannels->triangle;
-          break;
-        case NesApu::Channel::Noise:
-          ch = &mNesChannels->noise;
-          break;
-        case NesApu::Channel::Dpcm:
-          ch = &mNesChannels->dpcm;
-          break;
-      }
-      mNesEnvelope1 = &(ch->mEnvs.volume);
-      mNesEnvelope2 = &(ch->mEnvs.duty);
-      mNesEnvelope3 = &(ch->mEnvs.arp);
-      mNesEnvelope4 = &(ch->mEnvs.pitch);
-//    });
+    NesChannel *ch;
+    switch (channel) {
+      default:
+      case NesApu::Channel::Pulse1:
+        ch = &mNesChannels->pulse1;
+        break;
+      case NesApu::Channel::Pulse2:
+        ch = &mNesChannels->pulse2;
+        break;
+      case NesApu::Channel::Triangle:
+        ch = &mNesChannels->triangle;
+        break;
+      case NesApu::Channel::Noise:
+        ch = &mNesChannels->noise;
+        break;
+      case NesApu::Channel::Dpcm:
+        ch = &mNesChannels->dpcm;
+        break;
+    }
+    mNesEnvelope1 = &(ch->mEnvs.volume);
+    mNesEnvelope2 = &(ch->mEnvs.duty);
+    mNesEnvelope3 = &(ch->mEnvs.arp);
+    mNesEnvelope4 = &(ch->mEnvs.pitch);
   }
 
 
@@ -115,11 +107,11 @@ public:
       }
     }
 
-    // NO IDDEA WHAT IM DOING
     while (mNesApu->samples_avail() < nFrames) {
       for (auto channel : mNesChannels->allChannels) {
         channel->UpdateAPU();
       }
+      // TODO: this updates the APU state at 60 hz, introducing jitter and up to 16ms latency. acceptable?
       mNesApu->end_frame();
     }
 
@@ -173,32 +165,6 @@ public:
 
   void SetParam(int paramIdx, double value)
   {
-//    using EEnvStage = ADSREnvelope<sample>::EStage;
-
-//    if (paramIdx >= kParamEnv1 && paramIdx < kParamEnv2) {
-//      int step = paramIdx - kParamEnv1;
-//      mNesEnvelope1->mValues[step] = (int)value;
-//      return;
-//    }
-//
-//    if (paramIdx >= kParamEnv2 && paramIdx < kParamEnv3) {
-//      int step = paramIdx - kParamEnv2;
-//      mNesEnvelope2->mValues[step] = (int)value;
-//      return;
-//    }
-//
-//    if (paramIdx >= kParamEnv3 && paramIdx < kParamEnv4) {
-//      int step = paramIdx - kParamEnv3;
-//      mNesEnvelope3->mValues[step] = (int)value;
-//      return;
-//    }
-//
-//    if (paramIdx >= kParamEnv4 && paramIdx < kNumParams) {
-//      int step = paramIdx - kParamEnv4;
-//      mNesEnvelope4->mValues[step] = (int)value;
-//      return;
-//    }
-
     switch (paramIdx) {
       case kParamNoteGlideTime:
         mSynth.SetNoteGlideTime(value / 1000.);
@@ -292,7 +258,6 @@ public:
   WDL_PtrList<T> mModulations; // Ptrlist for global modulations
   LogParamSmooth<T, kNumModulations> mParamSmoother;
   sample mParamsToSmooth[kNumModulations];
-//  LFO<T> mLFO;
 
   NesEnvelope* mNesEnvelope1;
   NesEnvelope* mNesEnvelope2;
@@ -304,5 +269,4 @@ public:
   shared_ptr<Simple_Apu> mNesApu;
   int16_t mNesBuffer[32768];
   bool mOmniMode;
-//  shared_ptr<NesChannel> mActiveNesChannel;
 };

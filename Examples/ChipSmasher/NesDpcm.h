@@ -8,13 +8,13 @@
 #ifndef NesDpcm_h
 #define NesDpcm_h
 
-//#include "tmnt3hey.h"
-//#include "./resources/dmc/TinyToon1.h"
-//#include "./resources/dmc/TinyToon2.h"
-//#include "./resources/dmc/TinyToon3.h"
-//#include "./resources/dmc/TinyToon4.h"
-//#include "./resources/dmc/TinyToon5.h"
-//#include "./resources/dmc/TinyToon6.h"
+#include "tmnt3hey.h"
+#include "./resources/dmc/TinyToon1.h"
+#include "./resources/dmc/TinyToon2.h"
+#include "./resources/dmc/TinyToon3.h"
+#include "./resources/dmc/TinyToon4.h"
+#include "./resources/dmc/TinyToon5.h"
+#include "./resources/dmc/TinyToon6.h"
 #include <map>
 #include <utility>
 
@@ -112,17 +112,14 @@ struct NesDpcmPatch {
 class NesDpcm {
 public:
   NesDpcm() {
-//    shared_ptr<NesDpcmSample> sample = make_shared<NesDpcmSample>(TMNT3__E300_dmc, TMNT3__E300_dmc_len, "TMNT Hey");
-//    mSamples.push_back(sample);
-//    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C000_dmc, TinyToonA2__C000_dmc_len, "TinyTOon 1"));
-//    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C1C0_dmc, TinyToonA2__C1C0_dmc_len, "TInyTOon 2"));
-//    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C2C0_dmc, TinyToonA2__C2C0_dmc_len, "TInyTOon 3"));
-//    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C340_dmc, TinyToonA2__C340_dmc_len, "TInyTOon 4"));
-//    mNoteMap.push_back(make_shared<NesDpcmPatch>(mSamples[0]));
-//    mNoteMap.push_back(make_shared<NesDpcmPatch>(mSamples[1]));
-//    mNoteMap.push_back(make_shared<NesDpcmPatch>(mSamples[2]));
-//    mNoteMap.push_back(make_shared<NesDpcmPatch>(mSamples[3]));
-//    mNoteMap.push_back(make_shared<NesDpcmPatch>(13, true, mSamples[4]));
+    // TODO: decide on bundled DPMC samples
+    mSamples.push_back(make_shared<NesDpcmSample>(TMNT3__E300_dmc, TMNT3__E300_dmc_len, "TMNT3 Hey"));
+    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C000_dmc, TinyToonA2__C000_dmc_len, "TinyToon 1"));
+    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C1C0_dmc, TinyToonA2__C1C0_dmc_len, "TinyToon 2"));
+    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C2C0_dmc, TinyToonA2__C2C0_dmc_len, "TinyToon 3"));
+    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C340_dmc, TinyToonA2__C340_dmc_len, "TinyToon 4"));
+    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C580_dmc, TinyToonA2__C580_dmc_len, "TinyToon 5"));
+    mSamples.push_back(make_shared<NesDpcmSample>(TinyToonA2__C740_dmc, TinyToonA2__C740_dmc_len, "TinyToon 6"));
     for (int i = 0; i < 12; i++)
       mNoteMap.push_back(make_shared<NesDpcmPatch>());
   }

@@ -16,8 +16,6 @@ using namespace iplug;
 enum EModulations
 {
   kModGainSmoother = 0,
-  kModSustainSmoother,
-  kModLFO,
   kNumModulations,
 };
 
@@ -34,23 +32,11 @@ public:
     // (0) Square 1, (1) Square 2, (2) Triangle, (3) Noise, (4) DMC.
   }
 
-  NesVoice(shared_ptr<Simple_Apu> nesApu, NesChannel* nesChannel) :
-  mAMPEnv("gain", [&](){ mOSC.Reset(); }), // capture ok on RT thread?
-  mNesChannels({nesChannel}),
-  mNesApu(nesApu)
-  {
-    DBGMSG("new Voice: %i control inputs.\n", static_cast<int>(mInputs.size()));
-    // The oscillators are indexed as follows:
-    // (0) Square 1, (1) Square 2, (2) Triangle, (3) Noise, (4) DMC.
-  }
-
-
-
   bool GetBusy() const override
   {
     return true;
     // TODO: look into idling for NES voice. Ensure that MIDI activity turns on envelopes
-    // return mNesChannels->pulse1.mEnvs.arp.GetState() != NesEnvelope::ENV_OFF; // mAMPEnv.GetBusy();
+    // return mNesChannels->pulse1.mEnvs.arp.GetState() != NesEnvelope::ENV_OFF;
   }
 
   void Trigger(double level, bool isRetrigger) override
@@ -84,23 +70,11 @@ public:
     mAMPEnv.SetSampleRate(sampleRate);
   }
 
-  void SetProgramNumber(int pgm) override
-  {
-    //TODO:
-  }
-
-  // this is called by the VoiceAllocator to set generic control values.
-  void SetControl(int controlNumber, float value) override
-  {
-    //TODO:
-  }
-
 public:
   FastSinOscillator<T> mOSC;
   ADSREnvelope<T> mAMPEnv;
   vector<NesChannel*> mNesChannels;
   shared_ptr<Simple_Apu> mNesApu;
-//  int16_t nesBuffer[32768];
 
 };
 

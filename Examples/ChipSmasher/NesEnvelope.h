@@ -142,10 +142,6 @@ struct NesEnvelopes {
   ~NesEnvelopes() {
     printf("Destroying NesEnvelopes\n");
   }
-  // TODO: allEnvs() runtime fn
-
-//  NesEnvelopes(const NesEnvelopes&) = delete;
-//  NesEnvelopes& operator= (const NesEnvelopes&) = delete;
 
   NesEnvelope arp;
   NesEnvelope pitch;

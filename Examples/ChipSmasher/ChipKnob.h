@@ -11,7 +11,7 @@ class ChipKnob : public IKnobControlBase, public IVectorBase {
 public:
   ChipKnob(const IRECT &bounds, int paramIdx, const char *label = "", const IVStyle &style = DEFAULT_STYLE,
            bool valueIsEditable = false, bool valueInWidget = false, float a1 = -135.f, float a2 = 135.f,
-           float aAnchor = -135.f, EDirection direction = EDirection::Vertical, double gearing = DEFAULT_GEARING,
+           float aAnchor = -135.f, EDirection direction = EDirection::Vertical, double gearing = 4.f,
            float trackSize = 2.f) : IKnobControlBase(bounds, paramIdx, direction, gearing),
                                     IVectorBase(style, false, valueInWidget), mAngle1(a1), mAngle2(a2),
                                     mAnchorAngle(aAnchor) {
@@ -36,6 +36,14 @@ public:
     mTrackSize = trackSize;
     SetActionFunction(aF);
     AttachIControl(this, label);
+  }
+
+  IRECT MakeRects(const IRECT& parent, bool hasHandle = false) {
+    mLabelBounds = parent.GetFromBottom(16.f).GetTranslated(0, -16.f);
+    mValueBounds = parent.GetFromBottom(16.f);
+    mWidgetBounds = parent.GetReducedFromBottom(32.f);
+    IRECT clickableArea = mWidgetBounds;
+    return clickableArea;
   }
 
   void Draw(IGraphics &g) {

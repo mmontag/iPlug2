@@ -1,7 +1,8 @@
 #include "ChipSmasher.h"
 #include "IPlug_include_in_plug_src.h"
 #include "StepSequencer.h"
-#include "IDpcmEditorControl.h"
+#include "DpcmEditorControl.h"
+#include "ChipKnob.h"
 
 ChipSmasher::ChipSmasher(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPrograms))
@@ -123,6 +124,11 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
     pGraphics->AttachControl(new IWheelControl(wheelsBounds.FracRectHorizontal(0.5)), kCtrlTagBender);
     pGraphics->AttachControl(new IWheelControl(wheelsBounds.FracRectHorizontal(0.5, true),
                                                IMidiMsg::EControlChangeMsg::kModWheel), kCtrlTagModWheel);
+    pGraphics->SetQwertyMidiKeyHandlerFunc([pGraphics](const IMidiMsg &msg) {
+      dynamic_cast<IVKeyboardControl *>(
+        pGraphics->GetControlWithTag(kCtrlTagKeyboard))->SetNoteFromMidi(
+        msg.NoteNumber(), msg.StatusMsg() == IMidiMsg::kNoteOn);
+    });
 
 #pragma mark - Channel Panel
 
@@ -140,6 +146,15 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       auto label = get<string>(paramTuples).c_str();
       pGraphics->AttachControl(new IVToggleControl(channelButtonRect.GetFromRight(40.f), param, label, noLabelStyle), kNoTag, "NES");
       pGraphics->AttachControl(new IVButtonControl(channelButtonRect.GetReducedFromRight(40.f), [this, channel](IControl* pCaller){
+        bool isDpcm = channel == NesApu::Channel::Dpcm;
+        GetUI()->GetControlWithTag(kCtrlTagDpcmEditor)->Hide(!isDpcm);
+        GetUI()->ForControlInGroup("StepSequencers", [=](IControl& control) {
+          control.Hide(isDpcm);
+        });
+        GetUI()->ForControlInGroup("Knobs", [=](IControl& control) {
+          control.Hide(isDpcm);
+        });
+
         mDSP.SetActiveChannel(channel);
         UpdateStepSequencers();
         SendCurrentParamValuesFromDelegate();
@@ -147,7 +162,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       channelButtonRect.Translate(0, channelButtonRect.H());
     }
 
-    IVToggleControl *const omniButton = new IVToggleControl(channelButtonRect, kParamOmniMode, "Omni Mode", style);
+    auto omniButton = new IVToggleControl(channelButtonRect, kParamOmniMode, "Omni Mode", style);
     omniButton->SetTooltip("When Omni Mode is on, all NES channels receive events from all MIDI channels. "
                            "When Omni Mode is off, each MIDI channel is mapped to a different NES channel. "
                            "If your plugin host doesn't support multichannel plugins, "
@@ -157,9 +172,10 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
 
     pGraphics->AttachControl(new IVButtonControl(channelButtonRect, [=](IControl *pCaller) {
       static bool hide = false;
-      pGraphics->GetControlWithTag(kCtrlTagKeyboard)->Hide(hide = !hide);
-      pGraphics->GetControlWithTag(kCtrlTagBender)->Hide(hide = !hide);
-      pGraphics->GetControlWithTag(kCtrlTagModWheel)->Hide(hide = !hide);
+      hide = !hide;
+      pGraphics->GetControlWithTag(kCtrlTagKeyboard)->Hide(hide);
+      pGraphics->GetControlWithTag(kCtrlTagBender)->Hide(hide);
+      pGraphics->GetControlWithTag(kCtrlTagModWheel)->Hide(hide);
       pGraphics->Resize(PLUG_WIDTH, hide ? PLUG_HEIGHT - keyboardBounds.H() - PLUG_PADDING : PLUG_HEIGHT, pGraphics->GetDrawScale());
     }, "Toggle Keyboard", DEFAULT_STYLE.WithColor(kFG, COLOR_WHITE)));
 
@@ -171,11 +187,13 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
 
 #pragma mark - Step Sequencers
 
-    const IRECT envelopesPanel = b.GetReducedFromLeft(100).GetPadded(8);
+    const int kKnobHeight = 64.f;
+
+    const IRECT editorPanel = b.GetReducedFromLeft(100);
 
     auto createEnvelopePanel = [=](IRECT rect, const char* label, float minVal, float maxVal, NesEnvelope* nesEnv, int lpP, int rpP, int lP, int sdP, int ctrlTag, IColor color) {
 
-      auto stepSeq = new StepSequencer(rect.GetReducedFromBottom(40),
+      auto stepSeq = new StepSequencer(rect.GetReducedFromBottom(kKnobHeight + 16.f),
                                        label,
                                        style.WithColor(kFG, color).WithColor(kBG, IColor::FromColorCodeStr("#141414")),
                                        64,
@@ -183,46 +201,57 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
                                        nullptr);
       pGraphics->AttachControl(stepSeq, ctrlTag, "StepSequencers");
 
-      auto lpC = new IVSliderControl(rect.GetFromBottom(10).GetVShifted(-30), lpP, nullptr, noLabelStyle, true, EDirection::Horizontal, 1., 0, 5, false);
+      IRECT knobBox = rect.GetFromBottom(kKnobHeight);
+      IVStyle knobStyle = style
+        .WithLabelText(style.labelText.WithAlign(EAlign::Center).WithFont("Normal").WithSize(15.f))
+        .WithValueText(style.valueText.WithFont("Bold"));
+
+      // Loop
+      auto lpC = new ChipKnob(knobBox.SubRectHorizontal(4, 0), lpP, "Loop", knobStyle, false, false);
       lpC->SetActionFunction([=](IControl *pCaller) {
         stepSeq->SetLoopPoint(pCaller->GetParam()->Int());
       });
-      pGraphics->AttachControl(lpC, kNoTag, "Sliders");
+      pGraphics->AttachControl(lpC, kNoTag, "Knobs");
       stepSeq->SetLoopPoint(GetParam(kParamEnv1LoopPoint)->Int());
 
-      auto rpC = new IVSliderControl(rect.GetFromBottom(10).GetVShifted(-20), rpP, nullptr, noLabelStyle, true, EDirection::Horizontal, 1., 0, 5, false);
+      // Release
+      auto rpC = new ChipKnob(knobBox.SubRectHorizontal(4, 1), rpP, "Release", knobStyle, false, false);
       rpC->SetActionFunction([=](IControl *pCaller) {
         stepSeq->SetReleasePoint(pCaller->GetParam()->Int());
       });
-      pGraphics->AttachControl(rpC, kNoTag, "Sliders");
-      stepSeq->SetReleasePoint(GetParam(kParamEnv1RelPoint)->Int());
+      pGraphics->AttachControl(rpC, kNoTag, "Knobs");
+      stepSeq->SetReleasePoint(GetParam(kParamEnv1LoopPoint)->Int());
 
-      auto lC =  new IVSliderControl(rect.GetFromBottom(10).GetVShifted(-10), lP, nullptr, noLabelStyle, true, EDirection::Horizontal, 1., 0, 5, false);
+      // Length
+      auto lC = new ChipKnob(knobBox.SubRectHorizontal(4, 2), lP, "Length", knobStyle, false, false);
       lC->SetActionFunction([=](IControl *pCaller) {
         stepSeq->SetLength(pCaller->GetParam()->Int());
       });
-      pGraphics->AttachControl(lC, kNoTag, "Sliders");
-      stepSeq->SetLength(GetParam(kParamEnv1Length)->Int());
+      pGraphics->AttachControl(lC, kNoTag, "Knobs");
+      stepSeq->SetLength(GetParam(kParamEnv1LoopPoint)->Int());
 
-      pGraphics->AttachControl(new IVSliderControl(rect.GetFromBottom(10).GetVShifted(0), sdP, nullptr, noLabelStyle, true, EDirection::Horizontal, 1., 0, 5, false), kNoTag, "Sliders");
+      // Speed
+      auto sC = new ChipKnob(knobBox.SubRectHorizontal(4, 3), sdP, "Speed", knobStyle, false, false);
+      pGraphics->AttachControl(sC, kNoTag, "Knobs");
     };
 
-    createEnvelopePanel(envelopesPanel.GetGridCell(0,2,2).GetPadded(-8), "VOLUME",     0,   15, mDSP.mNesEnvelope1, kParamEnv1LoopPoint, kParamEnv1RelPoint, kParamEnv1Length, kParamEnv1SpeedDiv, kCtrlTagEnvelope1, IColor::FromColorCodeStr("#CC2626"));
-    createEnvelopePanel(envelopesPanel.GetGridCell(1,2,2).GetPadded(-8), "DUTY",       0,   7,  mDSP.mNesEnvelope2, kParamEnv2LoopPoint, kParamEnv2RelPoint, kParamEnv2Length, kParamEnv2SpeedDiv, kCtrlTagEnvelope2, IColor::FromColorCodeStr("#DE5E33"));
-    createEnvelopePanel(envelopesPanel.GetGridCell(2,2,2).GetPadded(-8), "PITCH",      -12, 12, mDSP.mNesEnvelope3, kParamEnv3LoopPoint, kParamEnv3RelPoint, kParamEnv3Length, kParamEnv3SpeedDiv, kCtrlTagEnvelope3, IColor::FromColorCodeStr("#53AD8E"));
-    createEnvelopePanel(envelopesPanel.GetGridCell(3,2,2).GetPadded(-8), "FINE PITCH", -12, 12, mDSP.mNesEnvelope4, kParamEnv4LoopPoint, kParamEnv4RelPoint, kParamEnv4Length, kParamEnv4SpeedDiv, kCtrlTagEnvelope4, IColor::FromColorCodeStr("#747ACD"));
+    IRECT envPanel = editorPanel.GetPadded(8);
+    createEnvelopePanel(envPanel.GetGridCell(0, 2, 2).GetPadded(-8), "VOLUME", 0, 15, mDSP.mNesEnvelope1,
+      kParamEnv1LoopPoint, kParamEnv1RelPoint, kParamEnv1Length, kParamEnv1SpeedDiv, kCtrlTagEnvelope1, IColor::FromColorCodeStr("#CC2626"));
+    createEnvelopePanel(envPanel.GetGridCell(1, 2, 2).GetPadded(-8), "DUTY", 0, 7, mDSP.mNesEnvelope2,
+      kParamEnv2LoopPoint, kParamEnv2RelPoint, kParamEnv2Length, kParamEnv2SpeedDiv, kCtrlTagEnvelope2, IColor::FromColorCodeStr("#DE5E33"));
+    createEnvelopePanel(envPanel.GetGridCell(2, 2, 2).GetPadded(-8), "PITCH", -12, 12, mDSP.mNesEnvelope3,
+      kParamEnv3LoopPoint, kParamEnv3RelPoint, kParamEnv3Length, kParamEnv3SpeedDiv, kCtrlTagEnvelope3, IColor::FromColorCodeStr("#53AD8E"));
+    createEnvelopePanel(envPanel.GetGridCell(3, 2, 2).GetPadded(-8), "FINE PITCH", -12, 12, mDSP.mNesEnvelope4,
+      kParamEnv4LoopPoint, kParamEnv4RelPoint, kParamEnv4Length, kParamEnv4SpeedDiv, kCtrlTagEnvelope4, IColor::FromColorCodeStr("#747ACD"));
 
     UpdateStepSequencers();
 
-    auto dpcmEditor = new IDpcmEditorControl(envelopesPanel, style, mDSP.mNesChannels->dpcm.mNesDpcm);
+#pragma mark - DPCM Editor
+
+    auto dpcmEditor = new DpcmEditorControl(editorPanel, style, mDSP.mNesChannels->dpcm.mNesDpcm);
     pGraphics->AttachControl(dpcmEditor, kCtrlTagDpcmEditor, "DpcmEditor");
     dpcmEditor->Hide(true);
-
-    pGraphics->SetQwertyMidiKeyHandlerFunc([pGraphics](const IMidiMsg &msg) {
-      dynamic_cast<IVKeyboardControl *>(
-        pGraphics->GetControlWithTag(kCtrlTagKeyboard))->SetNoteFromMidi(
-          msg.NoteNumber(), msg.StatusMsg() == IMidiMsg::kNoteOn);
-    });
 
   };
 #endif

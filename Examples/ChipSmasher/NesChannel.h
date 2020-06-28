@@ -16,13 +16,6 @@
 
 using namespace std;
 
-struct Note {
-  int value;
-  bool isStop;
-  bool isMusical;
-  bool isRelease;
-};
-
 class NesChannel
 {
 public:
@@ -36,6 +29,7 @@ public:
 
   virtual int GetPeriod() {
     int arpNote = mEnvs.arp.GetValueAndAdvance();
+    // TODO: scaled fine pitch mode so that fine pitch isn't useless for low notes
     int basePeriod = mNoteTable[mBaseNote + arpNote] - mEnvs.pitch.GetValueAndAdvance();
     int period = clamp(basePeriod / mPitchBendRatio, 8, 2047);
     return period;
@@ -128,7 +122,7 @@ public:
       int deltaHi = periodHi - mPrevPeriodHi;
 
       if (deltaHi != 0) {
-        // TODO: get smoothVibrato from some setting
+        // TODO: verify sweep is working, and get smoothVibrato from some setting
         bool smoothVibrato = true;
         if (smoothVibrato && abs(deltaHi) == 1) { // originally && !IsSeeking()
           // Blaarg's smooth vibrato technique using the sweep
