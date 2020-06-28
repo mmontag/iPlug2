@@ -2,17 +2,17 @@
 // Created by Matt Montag on 6/26/20.
 //
 
-#ifndef CHIPSMASHER_CHIPKNOB_H
-#define CHIPSMASHER_CHIPKNOB_H
+#ifndef CHIPSMASHER_KNOBCONTROL_H
+#define CHIPSMASHER_KNOBCONTROL_H
 
 #include "IControl.h"
 
-class ChipKnob : public IKnobControlBase, public IVectorBase {
+class KnobControl : public IKnobControlBase, public IVectorBase {
 public:
-  ChipKnob(const IRECT &bounds, int paramIdx, const char *label = "", const IVStyle &style = DEFAULT_STYLE,
-           bool valueIsEditable = false, bool valueInWidget = false, float a1 = -135.f, float a2 = 135.f,
-           float aAnchor = -135.f, EDirection direction = EDirection::Vertical, double gearing = 4.f,
-           float trackSize = 2.f) : IKnobControlBase(bounds, paramIdx, direction, gearing),
+  KnobControl(const IRECT &bounds, int paramIdx, const char *label = "", const IVStyle &style = DEFAULT_STYLE,
+              bool valueIsEditable = false, bool valueInWidget = false, float a1 = -135.f, float a2 = 135.f,
+              float aAnchor = -135.f, EDirection direction = EDirection::Vertical, double gearing = 4.f,
+              float trackSize = 2.f) : IKnobControlBase(bounds, paramIdx, direction, gearing),
                                     IVectorBase(style, false, valueInWidget), mAngle1(a1), mAngle2(a2),
                                     mAnchorAngle(aAnchor) {
     DisablePrompt(!valueIsEditable);
@@ -23,10 +23,10 @@ public:
     AttachIControl(this, label);
   }
 
-  ChipKnob(const IRECT &bounds, IActionFunction aF, const char *label = "", const IVStyle &style = DEFAULT_STYLE,
-           bool valueIsEditable = false, bool valueInWidget = false, float a1 = -135.f, float a2 = 135.f,
-           float aAnchor = -135.f, EDirection direction = EDirection::Vertical, double gearing = DEFAULT_GEARING,
-           float trackSize = 2.f) : IKnobControlBase(bounds, kNoParameter, direction, gearing),
+  KnobControl(const IRECT &bounds, IActionFunction aF, const char *label = "", const IVStyle &style = DEFAULT_STYLE,
+              bool valueIsEditable = false, bool valueInWidget = false, float a1 = -135.f, float a2 = 135.f,
+              float aAnchor = -135.f, EDirection direction = EDirection::Vertical, double gearing = DEFAULT_GEARING,
+              float trackSize = 2.f) : IKnobControlBase(bounds, kNoParameter, direction, gearing),
                                     IVectorBase(style, false, valueInWidget), mAngle1(a1), mAngle2(a2),
                                     mAnchorAngle(aAnchor) {
     DisablePrompt(!valueIsEditable);
@@ -188,4 +188,4 @@ protected:
 
 };
 
-#endif //CHIPSMASHER_CHIPKNOB_H
+#endif //CHIPSMASHER_KNOBCONTROL_H

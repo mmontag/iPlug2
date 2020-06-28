@@ -2,7 +2,7 @@
 #include "IPlug_include_in_plug_src.h"
 #include "StepSequencer.h"
 #include "DpcmEditorControl.h"
-#include "ChipKnob.h"
+#include "KnobControl.h"
 
 ChipSmasher::ChipSmasher(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPrograms))
@@ -207,7 +207,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
         .WithValueText(style.valueText.WithFont("Bold"));
 
       // Loop
-      auto lpC = new ChipKnob(knobBox.SubRectHorizontal(4, 0), lpP, "Loop", knobStyle, false, false);
+      auto lpC = new KnobControl(knobBox.SubRectHorizontal(4, 0), lpP, "Loop", knobStyle, false, false);
       lpC->SetActionFunction([=](IControl *pCaller) {
         stepSeq->SetLoopPoint(pCaller->GetParam()->Int());
       });
@@ -215,7 +215,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       stepSeq->SetLoopPoint(GetParam(kParamEnv1LoopPoint)->Int());
 
       // Release
-      auto rpC = new ChipKnob(knobBox.SubRectHorizontal(4, 1), rpP, "Release", knobStyle, false, false);
+      auto rpC = new KnobControl(knobBox.SubRectHorizontal(4, 1), rpP, "Release", knobStyle, false, false);
       rpC->SetActionFunction([=](IControl *pCaller) {
         stepSeq->SetReleasePoint(pCaller->GetParam()->Int());
       });
@@ -223,7 +223,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       stepSeq->SetReleasePoint(GetParam(kParamEnv1LoopPoint)->Int());
 
       // Length
-      auto lC = new ChipKnob(knobBox.SubRectHorizontal(4, 2), lP, "Length", knobStyle, false, false);
+      auto lC = new KnobControl(knobBox.SubRectHorizontal(4, 2), lP, "Length", knobStyle, false, false);
       lC->SetActionFunction([=](IControl *pCaller) {
         stepSeq->SetLength(pCaller->GetParam()->Int());
       });
@@ -231,7 +231,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       stepSeq->SetLength(GetParam(kParamEnv1LoopPoint)->Int());
 
       // Speed
-      auto sC = new ChipKnob(knobBox.SubRectHorizontal(4, 3), sdP, "Speed", knobStyle, false, false);
+      auto sC = new KnobControl(knobBox.SubRectHorizontal(4, 3), sdP, "Speed", knobStyle, false, false);
       pGraphics->AttachControl(sC, kNoTag, "Knobs");
     };
 
