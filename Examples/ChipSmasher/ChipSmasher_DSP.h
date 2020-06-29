@@ -23,17 +23,20 @@ public:
       shared_ptr<NesDpcm> nesDpcm = make_shared<NesDpcm>();
 
       NesApu::InitializeNoteTables(); // TODO: kill this singleton stuff
-      NesApu::InitAndReset(nesApu, 44100, 0, 0, nullptr);
+      NesApu::InitAndReset(nesApu, 44100, NesApu::APU_EXPANSION_VRC6, 0, nullptr);
       nesApu->dmc_reader([](void* nesDpcm_, cpu_addr_t addr) -> int {
         return static_cast<NesDpcm*>(nesDpcm_)->GetSampleForAddress(addr - 0xc000);
       }, nesDpcm.get());
 
       mNesChannels = make_shared<NesChannels>(
-        NesChannelPulse(nesApu,    NesApu::Channel::Pulse1,   NesEnvelopes()),
-        NesChannelPulse(nesApu,    NesApu::Channel::Pulse2,   NesEnvelopes()),
-        NesChannelTriangle(nesApu, NesApu::Channel::Triangle, NesEnvelopes()),
-        NesChannelNoise(nesApu,    NesApu::Channel::Noise,    NesEnvelopes()),
-        NesChannelDpcm(nesApu,     NesApu::Channel::Dpcm,     nesDpcm)
+        NesChannelPulse(nesApu,     NesApu::Channel::Pulse1,      NesEnvelopes()),
+        NesChannelPulse(nesApu,     NesApu::Channel::Pulse2,      NesEnvelopes()),
+        NesChannelTriangle(nesApu,  NesApu::Channel::Triangle,    NesEnvelopes()),
+        NesChannelNoise(nesApu,     NesApu::Channel::Noise,       NesEnvelopes()),
+        NesChannelDpcm(nesApu,      NesApu::Channel::Dpcm,        nesDpcm),
+        NesChannelVrc6Pulse(nesApu, NesApu::Channel::Vrc6Pulse1, NesEnvelopes()),
+        NesChannelVrc6Pulse(nesApu, NesApu::Channel::Vrc6Pulse2, NesEnvelopes()),
+        NesChannelVrc6Saw(nesApu,   NesApu::Channel::Vrc6Saw,     NesEnvelopes())
       );
       SetActiveChannel(NesApu::Channel::Pulse1);
 
@@ -57,29 +60,15 @@ public:
   }
 
   void SetActiveChannel(NesApu::Channel channel) {
-    NesChannel *ch;
-    switch (channel) {
-      default:
-      case NesApu::Channel::Pulse1:
-        ch = &mNesChannels->pulse1;
+    for (auto ch : mNesChannels->allChannels) {
+      if (ch->mChannel == channel) {
+        mNesEnvelope1 = &(ch->mEnvs.volume);
+        mNesEnvelope2 = &(ch->mEnvs.duty);
+        mNesEnvelope3 = &(ch->mEnvs.arp);
+        mNesEnvelope4 = &(ch->mEnvs.pitch);
         break;
-      case NesApu::Channel::Pulse2:
-        ch = &mNesChannels->pulse2;
-        break;
-      case NesApu::Channel::Triangle:
-        ch = &mNesChannels->triangle;
-        break;
-      case NesApu::Channel::Noise:
-        ch = &mNesChannels->noise;
-        break;
-      case NesApu::Channel::Dpcm:
-        ch = &mNesChannels->dpcm;
-        break;
+      }
     }
-    mNesEnvelope1 = &(ch->mEnvs.volume);
-    mNesEnvelope2 = &(ch->mEnvs.duty);
-    mNesEnvelope3 = &(ch->mEnvs.arp);
-    mNesEnvelope4 = &(ch->mEnvs.pitch);
   }
 
 
@@ -193,6 +182,15 @@ public:
         break;
       case kParamDpcmEnabled:
         SetChannelEnabled(NesApu::Channel::Dpcm, value > 0.5);
+        break;
+      case kParamVrc6Pulse1Enabled:
+        SetChannelEnabled(NesApu::Channel::Vrc6Pulse1, value > 0.5);
+        break;
+      case kParamVrc6Pulse2Enabled:
+        SetChannelEnabled(NesApu::Channel::Vrc6Pulse2, value > 0.5);
+        break;
+      case kParamVrc6SawEnabled:
+        SetChannelEnabled(NesApu::Channel::Vrc6Saw, value > 0.5);
         break;
 
       case kParamEnv1LoopPoint:

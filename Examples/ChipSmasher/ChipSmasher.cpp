@@ -136,11 +136,14 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
     IRECT channelPanel = b.GetFromLeft(84);
 
     IRECT channelButtonRect = channelPanel.GetFromTop(40.f);
-    for (auto paramTuples : vector<tuple<int, NesApu::Channel, string>>{{kParamPulse1Enabled,   NesApu::Channel::Pulse1,   "Pulse 1" },
-                                                                        {kParamPulse2Enabled,   NesApu::Channel::Pulse2,   "Pulse 2" },
-                                                                        {kParamTriangleEnabled, NesApu::Channel::Triangle, "Triangle"},
-                                                                        {kParamNoiseEnabled,    NesApu::Channel::Noise,    "Noise"   },
-                                                                        {kParamDpcmEnabled,     NesApu::Channel::Dpcm,     "DPCM"    }}) {
+    for (auto paramTuples : vector<tuple<int, NesApu::Channel, string>>{{kParamPulse1Enabled,     NesApu::Channel::Pulse1,     "Pulse 1"},
+                                                                        {kParamPulse2Enabled,     NesApu::Channel::Pulse2,     "Pulse 2"},
+                                                                        {kParamTriangleEnabled,   NesApu::Channel::Triangle,   "Triangle"},
+                                                                        {kParamNoiseEnabled,      NesApu::Channel::Noise,      "Noise"},
+                                                                        {kParamDpcmEnabled,       NesApu::Channel::Dpcm,       "DPCM"},
+                                                                        {kParamVrc6Pulse1Enabled, NesApu::Channel::Vrc6Pulse1, "Pulse 3"},
+                                                                        {kParamVrc6Pulse2Enabled, NesApu::Channel::Vrc6Pulse2, "Pulse 4"},
+                                                                        {kParamVrc6SawEnabled,    NesApu::Channel::Vrc6Saw,    "Saw"}}) {
       auto param = get<int>(paramTuples);
       auto channel = get<NesApu::Channel>(paramTuples);
       auto label = get<string>(paramTuples).c_str();

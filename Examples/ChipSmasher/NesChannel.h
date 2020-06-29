@@ -31,7 +31,7 @@ public:
     int arpNote = mEnvs.arp.GetValueAndAdvance();
     // TODO: scaled fine pitch mode so that fine pitch isn't useless for low notes
     int basePeriod = mNoteTable[mBaseNote + arpNote] - mEnvs.pitch.GetValueAndAdvance();
-    int period = clamp(basePeriod / mPitchBendRatio, 8, 2047);
+    int period = clamp(basePeriod / mPitchBendRatio, 8, NesApu::GetMaxPeriodForChannel(mChannel));
     return period;
   }
 
@@ -42,7 +42,8 @@ public:
   }
 
   virtual int GetDuty() {
-    return mEnvs.duty.GetValueAndAdvance() % 4; // 2A03 pulse channels duty: 0, 1, 2, 3
+    // 2A03 pulse channels duty really only has 3 levels; 0: 1/8, 1: 2/8, 2: 4/8, 3: 2/8 negated
+    return mEnvs.duty.GetValueAndAdvance() % 4;
   }
 
   // TODO rename something like Advance() or EndFrame()
@@ -109,7 +110,7 @@ public:
     mRegOffset = mChannel * 4;
   }
 
-  virtual void UpdateAPU() override {
+  void UpdateAPU() override {
     int duty = GetDuty();
     int volume = 0;
 
@@ -149,7 +150,7 @@ public:
       mNesApu->write_register(NesApu::APU_PL1_LO + mRegOffset, periodLo);
     }
 
-    // duty is shifted to 2 most significant bits
+    // duty is shifted to 2 most-significant bits
     mNesApu->write_register(NesApu::APU_PL1_VOL + mRegOffset, (duty << 6) | 0x30 | volume);
     NesChannel::UpdateAPU();
   }
@@ -160,11 +161,11 @@ class NesChannelTriangle : public NesChannel
 public:
   NesChannelTriangle(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
 
-  virtual int GetVolume() {
+  int GetVolume() override {
     return mEnvs.volume.GetValueAndAdvance() ? 0xff : 0x80;
   }
 
-  virtual void UpdateAPU() {
+  void UpdateAPU() override {
     if (mEnvs.volume.GetState() != NesEnvelope::ENV_OFF) {
       int volume = GetVolume();
       int period = GetPeriod();
@@ -187,11 +188,11 @@ class NesChannelNoise : public NesChannel
 public:
   NesChannelNoise(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
 
-  virtual int GetPeriod() {
+  int GetPeriod() override {
     return (mBaseNote + mEnvs.arp.GetValueAndAdvance()) & 0x0f;
   }
 
-  virtual void UpdateAPU() {
+  void UpdateAPU() override {
     if (mEnvs.volume.GetState() != NesEnvelope::ENV_OFF) {
       int volume = GetVolume();
       int duty = GetDuty();
@@ -215,16 +216,16 @@ public:
   , mNesDpcm(std::move(nesDpcm))
   {}
 
-  virtual void Trigger(int baseNote, double velocity) {
+  void Trigger(int baseNote, double velocity) override {
     mBaseNote = baseNote;
     mDpcmTriggered = true;
   }
 
-  virtual void Release() {
+  void Release() override {
     mDpcmReleased = true;
   }
 
-  virtual void UpdateAPU() {
+  void UpdateAPU() override {
     if (mDpcmTriggered) {
       mDpcmTriggered = false;
       mNesApu->write_register(NesApu::APU_SND_CHN, 0x0f);
@@ -269,22 +270,83 @@ protected:
   bool mDpcmReleased;
 };
 
+class NesChannelVrc6Pulse : public NesChannel
+{
+public:
+  int mRegOffset = 0;
+
+  NesChannelVrc6Pulse(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes)
+    : NesChannel(nesApu, channel, nesEnvelopes) {
+    mRegOffset = (mChannel - NesApu::Channel::Vrc6Pulse1) * 0x1000;
+  }
+
+  virtual int GetDuty() {
+    // VRC6 pulse channels duty has 8 levels; 0: 1/16, 1: 2/16,... 7: 8/16
+    return mEnvs.duty.GetValueAndAdvance();
+  }
+
+  void UpdateAPU() override {
+    int duty = GetDuty();
+
+    if (mEnvs.arp.GetState() == NesEnvelope::ENV_OFF) {
+      mNesApu->write_register(NesApu::VRC6_PL1_VOL + mRegOffset, duty << 4);
+    } else {
+      int period = GetPeriod();
+      int volume = GetVolume();
+      mNesApu->write_register(NesApu::VRC6_PL1_LO  + mRegOffset, ((period >> 0) & 0xff));
+      mNesApu->write_register(NesApu::VRC6_PL1_HI  + mRegOffset, ((period >> 8) & 0x0f) | 0x80);
+      // duty is shifted to 4 most-significant bits
+      mNesApu->write_register(NesApu::VRC6_PL1_VOL + mRegOffset, (duty << 4) | volume);
+    }
+
+    NesChannel::UpdateAPU();
+  }
+};
+
+class NesChannelVrc6Saw : public NesChannel
+{
+public:
+  NesChannelVrc6Saw(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes)
+    : NesChannel(nesApu, channel, nesEnvelopes) {}
+
+  void UpdateAPU() override {
+    if (mEnvs.arp.GetState() == NesEnvelope::ENV_OFF) {
+      mNesApu->write_register(NesApu::VRC6_SAW_VOL, 0x00);
+    } else {
+      int period = GetPeriod();
+      int volume = GetVolume();
+
+      mNesApu->write_register(NesApu::VRC6_SAW_LO , ((period >> 0) & 0xff));
+      mNesApu->write_register(NesApu::VRC6_SAW_HI , ((period >> 8) & 0x0f) | 0x80);
+      mNesApu->write_register(NesApu::VRC6_SAW_VOL, volume << 2);
+    }
+
+    NesChannel::UpdateAPU();
+  }
+};
 
 
 struct NesChannels {
-  explicit NesChannels(NesChannelPulse p1, NesChannelPulse p2, NesChannelTriangle t, NesChannelNoise n, NesChannelDpcm d)
+  explicit NesChannels(NesChannelPulse p1, NesChannelPulse p2, NesChannelTriangle t, NesChannelNoise n,
+                       NesChannelDpcm d, NesChannelVrc6Pulse vp1, NesChannelVrc6Pulse vp2, NesChannelVrc6Saw s)
     : pulse1(std::move(p1))
     , pulse2(std::move(p2))
     , triangle(std::move(t))
     , noise(std::move(n))
     , dpcm(std::move(d))
-    , allChannels({&pulse1, &pulse2, &triangle, &noise, &dpcm}) {}
+    , vrc6pulse1(vp1)
+    , vrc6pulse2(vp2)
+    , vrc6saw(s)
+    , allChannels({&pulse1, &pulse2, &triangle, &noise, &dpcm, &vrc6pulse1, &vrc6pulse2, &vrc6saw}) {}
 
-  NesChannelPulse pulse1;
-  NesChannelPulse pulse2;
-  NesChannelTriangle triangle;
-  NesChannelNoise noise;
-  NesChannelDpcm dpcm;
+  NesChannelPulse     pulse1;
+  NesChannelPulse     pulse2;
+  NesChannelTriangle  triangle;
+  NesChannelNoise     noise;
+  NesChannelDpcm      dpcm;
+  NesChannelVrc6Pulse vrc6pulse1;
+  NesChannelVrc6Pulse vrc6pulse2;
+  NesChannelVrc6Saw   vrc6saw;
 
   vector<NesChannel*> allChannels;
 };

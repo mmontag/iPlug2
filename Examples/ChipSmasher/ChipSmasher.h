@@ -19,6 +19,9 @@ enum EParams
   kParamTriangleEnabled,
   kParamNoiseEnabled,
   kParamDpcmEnabled,
+  kParamVrc6Pulse1Enabled,
+  kParamVrc6Pulse2Enabled,
+  kParamVrc6SawEnabled,
 
   kParamEnv1LoopPoint,
   kParamEnv1RelPoint,

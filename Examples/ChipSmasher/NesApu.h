@@ -5,6 +5,7 @@
 //  Created by Matt Montag on 5/20/20.
 //
 //  Portions inspired by Mathieu Gauthier's FamiStudio.
+//  https://github.com/BleuBleu/FamiStudio/blob/master/FamiStudio/Source/Player/NesApu.cs
 //
 
 #ifndef NesApu_hpp
@@ -160,9 +161,8 @@ public:
     Triangle = 2,
     Noise = 3,
     Dpcm = 4,
-    ExpansionAudioStart,
-    Vrc6Square1,
-    Vrc6Square2,
+    Vrc6Pulse1,
+    Vrc6Pulse2,
     Vrc6Saw,
     Vrc7Fm1,
     Vrc7Fm2,
@@ -229,7 +229,7 @@ public:
         //      case Channel::N163Wave6:
         //      case Channel::N163Wave7:
         //      case Channel::N163Wave8:
-//                return NoteTableN163[numN163Channels - 1];
+        //        return NoteTableN163[numN163Channels - 1];
       case Channel::Vrc7Fm1:
       case Channel::Vrc7Fm2:
       case Channel::Vrc7Fm3:
@@ -247,8 +247,8 @@ public:
     switch(channel) {
       case Channel::FdsWave:
       case Channel::Vrc6Saw:
-      case Channel::Vrc6Square1:
-      case Channel::Vrc6Square2:
+      case Channel::Vrc6Pulse1:
+      case Channel::Vrc6Pulse2:
         return MaximumPeriod12Bit;
       case Channel::Vrc7Fm1:
       case Channel::Vrc7Fm2:
