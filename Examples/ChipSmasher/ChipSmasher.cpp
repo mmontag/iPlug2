@@ -164,7 +164,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
 
     auto omniButton = new IVToggleControl(channelButtonRect, kParamOmniMode, "Omni Mode", style);
     omniButton->SetTooltip("When Omni Mode is on, all NES channels receive events from all MIDI channels. "
-                           "When Omni Mode is off, each MIDI channel is mapped to a different NES channel. "
+                           "When Omni Mode is off, each MIDI channel is mapped to a different NES channel. \n"
                            "If your plugin host doesn't support multichannel plugins, "
                            "or if you don't know what this means, leave Omni Mode on.");
     pGraphics->AttachControl(omniButton, kNoTag, "NES");

@@ -171,7 +171,7 @@ public:
     IControl::OnMouseUp(x, y, mod);
   }
 
-  bool mIsSelected;
+  bool mIsSelected = false;
   shared_ptr<NesDpcmPatch> mPatch;
 protected:
   vector<shared_ptr<NesDpcmSample>>& mSamples;

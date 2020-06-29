@@ -8,7 +8,7 @@
 #ifndef NesDpcm_h
 #define NesDpcm_h
 
-#include "tmnt3hey.h"
+#include "./resources/dmc/tmnt3hey.h"
 #include "./resources/dmc/TinyToon1.h"
 #include "./resources/dmc/TinyToon2.h"
 #include "./resources/dmc/TinyToon3.h"
