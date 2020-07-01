@@ -57,13 +57,15 @@ public:
     }
   }
 
-  virtual void Trigger(int baseNote, double velocity) {
-    mBaseNote = baseNote;
-    mVelocity = velocity;
-    mEnvs.volume.Trigger();
-    mEnvs.arp.Trigger();
-    mEnvs.pitch.Trigger();
-    mEnvs.duty.Trigger();
+  virtual void Trigger(int baseNote, double velocity, bool isRetrigger = true) {
+    mBaseNote = mKeyTrack ? baseNote : 64;
+    if (isRetrigger) {
+      mVelocity = mVelSens ? velocity : 1.f;
+      mEnvs.volume.Trigger();
+      mEnvs.arp.Trigger();
+      mEnvs.pitch.Trigger();
+      mEnvs.duty.Trigger();
+    }
   }
 
   virtual void Release() {
@@ -73,10 +75,19 @@ public:
     mEnvs.duty.Release();
   }
 
+  virtual void SetKeyTrack(bool enabled) {
+    mKeyTrack = enabled;
+  }
+
+  virtual void SetVelSens(bool enabled) {
+    mVelSens = enabled;
+  }
+
   virtual void Serialize(iplug::IByteChunk &chunk) {
     for (auto env : mEnvs.allEnvs) {
       env->Serialize(chunk);
     }
+    // TODO: serialize keytrack, vel sens, legato
   }
 
   virtual int Deserialize(const iplug::IByteChunk &chunk, int startPos) {
@@ -97,6 +108,8 @@ public:
   float mPitchBendRatio = 1;
   float mPitchBend = 0;
   float mVelocity;
+  bool mKeyTrack = true;
+  bool mVelSens = true;
 };
 
 class NesChannelPulse : public NesChannel
@@ -219,7 +232,7 @@ public:
   , mNesDpcm(std::move(nesDpcm))
   {}
 
-  void Trigger(int baseNote, double velocity) override {
+  void Trigger(int baseNote, double velocity, bool isRetrigger) override {
     mBaseNote = baseNote;
     mDpcmTriggered = true;
   }
@@ -330,7 +343,7 @@ public:
 
 
 struct NesChannels {
-  explicit NesChannels(NesChannelPulse p1, NesChannelPulse p2, NesChannelTriangle t, NesChannelNoise n,
+  NesChannels(NesChannelPulse p1, NesChannelPulse p2, NesChannelTriangle t, NesChannelNoise n,
                        NesChannelDpcm d, NesChannelVrc6Pulse vp1, NesChannelVrc6Pulse vp2, NesChannelVrc6Saw s)
     : pulse1(std::move(p1))
     , pulse2(std::move(p2))

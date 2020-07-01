@@ -15,6 +15,37 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
   GetParam(kParamTriangleEnabled)->InitBool("Triangle Enabled", false);
   GetParam(kParamNoiseEnabled)->InitBool("Noise Enabled", false);
   GetParam(kParamDpcmEnabled)->InitBool("DPCM Enabled", false);
+  GetParam(kParamVrc6Pulse1Enabled)->InitBool("VRC6 Pulse 1 Enabled", false);
+  GetParam(kParamVrc6Pulse2Enabled)->InitBool("VRC6 Pulse 2 Enabled", false);
+  GetParam(kParamVrc6SawEnabled)->InitBool("VRC6 Saw Enabled", false);
+
+  GetParam(kParamPulse1KeyTrack)->InitBool("Pulse 1 Key Track", true);
+  GetParam(kParamPulse2KeyTrack)->InitBool("Pulse 2 Key Track", true);
+  GetParam(kParamTriangleKeyTrack)->InitBool("Triangle Key Track", true);
+  GetParam(kParamNoiseKeyTrack)->InitBool("Noise Key Track", true);
+  GetParam(kParamDpcmKeyTrack)->InitBool("DPCM Key Track", true);
+  GetParam(kParamVrc6Pulse1KeyTrack)->InitBool("VRC6 Pulse 1 Key Track", true);
+  GetParam(kParamVrc6Pulse2KeyTrack)->InitBool("VRC6 Pulse 2 Key Track", true);
+  GetParam(kParamVrc6SawKeyTrack)->InitBool("VRC6 Saw Key Track", true);
+
+  GetParam(kParamPulse1VelSens)->InitBool("Pulse 1 Vel Sens", true);
+  GetParam(kParamPulse2VelSens)->InitBool("Pulse 2 Vel Sens", true);
+  GetParam(kParamTriangleVelSens)->InitBool("Triangle Vel Sens", true);
+  GetParam(kParamNoiseVelSens)->InitBool("Noise Vel Sens", true);
+  GetParam(kParamDpcmVelSens)->InitBool("DPCM Vel Sens", true);
+  GetParam(kParamVrc6Pulse1VelSens)->InitBool("VRC6 Pulse 1 Vel Sens", true);
+  GetParam(kParamVrc6Pulse2VelSens)->InitBool("VRC6 Pulse 2 Vel Sens", true);
+  GetParam(kParamVrc6SawVelSens)->InitBool("VRC6 Saw Vel Sens", true);
+
+  GetParam(kParamPulse1Legato)->InitBool("Pulse 1 Legato", false);
+  GetParam(kParamPulse2Legato)->InitBool("Pulse 2 Legato", false);
+  GetParam(kParamTriangleLegato)->InitBool("Triangle Legato", false);
+  GetParam(kParamNoiseLegato)->InitBool("Noise Legato", false);
+  GetParam(kParamDpcmLegato)->InitBool("DPCM Legato", false);
+  GetParam(kParamVrc6Pulse1Legato)->InitBool("VRC6 Pulse 1 Legato", false);
+  GetParam(kParamVrc6Pulse2Legato)->InitBool("VRC6 Pulse 2 Legato", false);
+  GetParam(kParamVrc6SawLegato)->InitBool("VRC6 Saw Legato", false);
+
   GetParam(kParamOmniMode)->InitBool("Omni Mode Enabled", true);
 
   GetParam(kParamEnv1LoopPoint)->InitInt("Env 1 Loop",    15, 0, 64, "", IParam::kFlagStepped);
@@ -148,7 +179,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
       auto channel = get<NesApu::Channel>(paramTuples);
       auto label = get<string>(paramTuples).c_str();
       pGraphics->AttachControl(new IVToggleControl(channelButtonRect.GetFromRight(40.f), param, label, noLabelStyle), kNoTag, "NES");
-      pGraphics->AttachControl(new IVButtonControl(channelButtonRect.GetReducedFromRight(40.f), [this, channel](IControl* pCaller){
+      pGraphics->AttachControl(new IVButtonControl(channelButtonRect.GetReducedFromRight(40.f), [this, channel, param](IControl* pCaller){
         bool isDpcm = channel == NesApu::Channel::Dpcm;
         GetUI()->GetControlWithTag(kCtrlTagDpcmEditor)->Hide(!isDpcm);
         GetUI()->ForControlInGroup("StepSequencers", [=](IControl& control) {
@@ -158,12 +189,29 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
           control.Hide(isDpcm);
         });
 
+        // Reassign channel-specific toggles
+        GetUI()->GetControlWithTag(kCtrlTagKeyTrack)->SetParamIdx(param - kParamPulse1Enabled + kParamPulse1KeyTrack);
+        GetUI()->GetControlWithTag(kCtrlTagVelSens)->SetParamIdx(param - kParamPulse1Enabled + kParamPulse1VelSens);
+        GetUI()->GetControlWithTag(kCtrlTagLegato)->SetParamIdx(param - kParamPulse1Enabled + kParamPulse1Legato);
+
         mDSP.SetActiveChannel(channel);
         UpdateStepSequencers();
         SendCurrentParamValuesFromDelegate();
       }, label, style), kNoTag, "NES");
       channelButtonRect.Translate(0, channelButtonRect.H());
     }
+
+    auto keyTrackButton = new IVToggleControl(channelButtonRect, kParamPulse1KeyTrack, "Key Track", style);
+    pGraphics->AttachControl(keyTrackButton, kCtrlTagKeyTrack, "NES");
+    channelButtonRect.Translate(0, channelButtonRect.H());
+
+    auto velSensButton = new IVToggleControl(channelButtonRect, kParamPulse1VelSens, "Vel Sens", style);
+    pGraphics->AttachControl(velSensButton, kCtrlTagVelSens, "NES");
+    channelButtonRect.Translate(0, channelButtonRect.H());
+
+    auto legatoButton = new IVToggleControl(channelButtonRect, kParamPulse1Legato, "Legato", style);
+    pGraphics->AttachControl(legatoButton, kCtrlTagLegato, "NES");
+    channelButtonRect.Translate(0, channelButtonRect.H());
 
     auto omniButton = new IVToggleControl(channelButtonRect, kParamOmniMode, "Omni Mode", style);
     omniButton->SetTooltip("When Omni Mode is on, all NES channels receive events from all MIDI channels. "

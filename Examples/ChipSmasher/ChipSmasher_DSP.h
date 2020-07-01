@@ -132,7 +132,6 @@ public:
       }
     }
 
-//    mLFO.SetSampleRate(sampleRate);
     mModulationsData.Resize(blockSize * kNumModulations);
     mModulations.Empty();
     
@@ -169,28 +168,48 @@ public:
         break;
 
       case kParamPulse1Enabled:
-        SetChannelEnabled(NesApu::Channel::Pulse1, value > 0.5);
-        break;
       case kParamPulse2Enabled:
-        SetChannelEnabled(NesApu::Channel::Pulse2, value > 0.5);
-        break;
       case kParamTriangleEnabled:
-        SetChannelEnabled(NesApu::Channel::Triangle, value > 0.5);
-        break;
       case kParamNoiseEnabled:
-        SetChannelEnabled(NesApu::Channel::Noise, value > 0.5);
-        break;
       case kParamDpcmEnabled:
-        SetChannelEnabled(NesApu::Channel::Dpcm, value > 0.5);
-        break;
       case kParamVrc6Pulse1Enabled:
-        SetChannelEnabled(NesApu::Channel::Vrc6Pulse1, value > 0.5);
-        break;
       case kParamVrc6Pulse2Enabled:
-        SetChannelEnabled(NesApu::Channel::Vrc6Pulse2, value > 0.5);
-        break;
       case kParamVrc6SawEnabled:
-        SetChannelEnabled(NesApu::Channel::Vrc6Saw, value > 0.5);
+        SetChannelEnabled(NesApu::Channel(paramIdx - kParamPulse1Enabled), value > 0.5);
+        break;
+
+      case kParamPulse1KeyTrack:
+      case kParamPulse2KeyTrack:
+      case kParamTriangleKeyTrack:
+      case kParamNoiseKeyTrack:
+      case kParamDpcmKeyTrack:
+      case kParamVrc6Pulse1KeyTrack:
+      case kParamVrc6Pulse2KeyTrack:
+      case kParamVrc6SawKeyTrack:
+        mNesChannels->allChannels[paramIdx - kParamPulse1KeyTrack]->SetKeyTrack(value > 0.5);
+        break;
+
+      case kParamPulse1VelSens:
+      case kParamPulse2VelSens:
+      case kParamTriangleVelSens:
+      case kParamNoiseVelSens:
+      case kParamDpcmVelSens:
+      case kParamVrc6Pulse1VelSens:
+      case kParamVrc6Pulse2VelSens:
+      case kParamVrc6SawVelSens:
+        mNesChannels->allChannels[paramIdx - kParamPulse1KeyTrack]->SetVelSens(value > 0.5);
+        break;
+
+      case kParamPulse1Legato:
+      case kParamPulse2Legato:
+      case kParamTriangleLegato:
+      case kParamNoiseLegato:
+      case kParamDpcmLegato:
+      case kParamVrc6Pulse1Legato:
+      case kParamVrc6Pulse2Legato:
+      case kParamVrc6SawLegato:
+        // TODO: all different synths
+        mSynth.SetLegato(value > 0.5);
         break;
 
       case kParamEnv1LoopPoint:

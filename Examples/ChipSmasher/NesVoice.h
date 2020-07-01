@@ -44,7 +44,7 @@ public:
     DBGMSG("Trigger mKey %d - level %0.2f\n", mKey, level);
 
     for (auto channel : mNesChannels) {
-      channel->Trigger(mKey, level);
+      channel->Trigger(mKey, level, isRetrigger);
     }
   }
 
