@@ -30,7 +30,7 @@ public:
   virtual int GetPeriod() {
     int arpNote = mEnvs.arp.GetValueAndAdvance();
     // TODO: scaled fine pitch mode so that fine pitch isn't useless for low notes
-    int basePeriod = mNoteTable[mBaseNote + arpNote] - mEnvs.pitch.GetValueAndAdvance();
+    int basePeriod = mNoteTable[mBaseNote - mNoteTableMidiOffset + arpNote] - mEnvs.pitch.GetValueAndAdvance();
     int period = clamp(basePeriod / mPitchBendRatio, 8, NesApu::GetMaxPeriodForChannel(mChannel));
     return period;
   }
@@ -91,7 +91,8 @@ public:
   shared_ptr<Simple_Apu> mNesApu;
   NesApu::Channel mChannel;
   array<ushort, 97> mNoteTable;
-  int mBaseNote = 40;
+  int mBaseNote = 48;
+  int mNoteTableMidiOffset = 24;
   NesEnvelopes mEnvs;
   float mPitchBendRatio = 1;
   float mPitchBend = 0;
@@ -159,7 +160,9 @@ public:
 class NesChannelTriangle : public NesChannel
 {
 public:
-  NesChannelTriangle(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {}
+  NesChannelTriangle(shared_ptr<Simple_Apu> nesApu, NesApu::Channel channel, const NesEnvelopes &nesEnvelopes) : NesChannel(nesApu, channel, nesEnvelopes) {
+    mNoteTableMidiOffset = 12;
+  }
 
   int GetVolume() override {
     return mEnvs.volume.GetValueAndAdvance() ? 0xff : 0x80;
