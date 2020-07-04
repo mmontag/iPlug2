@@ -1,11 +1,6 @@
 #pragma once
 
 #include "MidiSynth.h"
-#include "Oscillator.h"
-#include "ADSREnvelope.h"
-#include "Smoothers.h"
-#include "LFO.h"
-
 #include "NesApu.h"
 #include "NesVoice.h"
 #include "NesDpcm.h"
@@ -17,7 +12,7 @@ class ChipSmasherDSP
 {
 public:
 #pragma mark -
-  ChipSmasherDSP(int nVoices)
+  ChipSmasherDSP()
   {
       shared_ptr<Simple_Apu> nesApu = mNesApu = make_shared<Simple_Apu>();
       shared_ptr<NesDpcm> nesDpcm = make_shared<NesDpcm>();
@@ -40,14 +35,8 @@ public:
       );
       SetActiveChannel(NesApu::Channel::Pulse1);
 
-      // Omni Mode: one monophonic synth, broadcast on all NES channels
-      auto voice = new NesVoice<T>(nesApu, mNesChannels->allChannels);
-      mSynth.AddVoice(voice, 0);
-
-      // Per-channel Mode: many monophonic synths, one for each NES channel
-      for (int i = 0; i < mNesChannels->allChannels.size(); i++) {
-        auto ch = vector<NesChannel *>{mNesChannels->allChannels[i]};
-        auto channelVoice = new NesVoice<T>(nesApu, ch);
+      for (int i = 0; i < mNesChannels->numChannels; i++) {
+        auto channelVoice = new NesVoice<T>(nesApu, mNesChannels->allChannels[i]);
         auto channelSynth = new MidiSynth(VoiceAllocator::kPolyModeMono, MidiSynth::kDefaultBlockSize);
         mChannelSynths.emplace_back(channelSynth);
         mChannelSynths[i]->AddVoice(channelVoice, 0);
@@ -83,17 +72,9 @@ public:
     {
       memset(outputs[i], 0, nFrames * sizeof(T));
     }
-    
-    mParamSmoother.ProcessBlock(mParamsToSmooth, mModulations.GetList(), nFrames);
-//    mLFO.ProcessBlock(mModulations.GetList()[kModLFO], nFrames, qnPos, transportIsRunning, tempo);
 
-
-    if (mOmniMode) {
-      mSynth.ProcessBlock(mModulations.GetList(), outputs, 0, nOutputs, nFrames);
-    } else {
-      for (auto &synth : mChannelSynths) {
-        synth->ProcessBlock(mModulations.GetList(), outputs, 0, nOutputs, nFrames);
-      }
+    for (auto &synth : mChannelSynths) {
+      synth->ProcessBlock(nullptr, outputs, 0, nOutputs, nFrames);
     }
 
     while (mNesApu->samples_avail() < nFrames) {
@@ -111,43 +92,22 @@ public:
       outputs[0][idx] += smpl;
       outputs[1][idx] += smpl;
     }
-
-    for(int s=0; s < nFrames;s++)
-    {
-      T smoothedGain = mModulations.GetList()[kModGainSmoother][s];
-      outputs[0][s] *= smoothedGain;
-      outputs[1][s] *= smoothedGain;
-    }
   }
 
   void Reset(double sampleRate, int blockSize)
   {
-    if (mOmniMode) {
-      mSynth.SetSampleRateAndBlockSize(sampleRate, blockSize);
-      mSynth.Reset();
-    } else {
-      for (auto &synth : mChannelSynths) {
-        synth->SetSampleRateAndBlockSize(sampleRate, blockSize);
-        synth->Reset();
-      }
-    }
-
-    mModulationsData.Resize(blockSize * kNumModulations);
-    mModulations.Empty();
-    
-    for(int i = 0; i < kNumModulations; i++)
-    {
-      mModulations.Add(mModulationsData.Get() + (blockSize * i));
+    for (auto &synth : mChannelSynths) {
+      synth->SetSampleRateAndBlockSize(sampleRate, blockSize);
+      synth->Reset();
     }
   }
 
   void ProcessMidiMsg(const IMidiMsg& msg)
   {
-    // MIDI event is queued; Corresponds to InstrumentPlayer.PlayNote() in Famistudio
     if (mOmniMode) {
-      mSynth.AddMidiMsgToQueue(msg);
-    } else {
-      mChannelSynths[msg.Channel() % mChannelSynths.size()]->AddMidiMsgToQueue(msg);
+      for (auto synth : mChannelSynths) synth->AddMidiMsgToQueue(msg);
+    } else if (msg.Channel() < mNesChannels->numChannels) {
+      mChannelSynths[msg.Channel()]->AddMidiMsgToQueue(msg);
     }
   }
 
@@ -155,15 +115,11 @@ public:
   {
     switch (paramIdx) {
       case kParamNoteGlideTime:
-        mSynth.SetNoteGlideTime(value / 1000.);
-        break;
-      case kParamGain:
-        mParamsToSmooth[kModGainSmoother] = (T) value / 100.;
+        for (auto synth : mChannelSynths) synth->SetNoteGlideTime(value / 1000.);
         break;
 
       case kParamOmniMode:
         mOmniMode = value > 0.5;
-        mSynth.Reset();
         for (auto synth : mChannelSynths) synth->Reset();
         break;
 
@@ -197,7 +153,7 @@ public:
       case kParamVrc6Pulse1VelSens:
       case kParamVrc6Pulse2VelSens:
       case kParamVrc6SawVelSens:
-        mNesChannels->allChannels[paramIdx - kParamPulse1KeyTrack]->SetVelSens(value > 0.5);
+        mNesChannels->allChannels[paramIdx - kParamPulse1VelSens]->SetVelSens(value > 0.5);
         break;
 
       case kParamPulse1Legato:
@@ -208,8 +164,7 @@ public:
       case kParamVrc6Pulse1Legato:
       case kParamVrc6Pulse2Legato:
       case kParamVrc6SawLegato:
-        // TODO: all different synths
-        mSynth.SetLegato(value > 0.5);
+        mChannelSynths[paramIdx - kParamPulse1Legato]->SetLegato(value > 0.5);
         break;
 
       case kParamEnv1LoopPoint:
@@ -270,12 +225,6 @@ public:
   }
   
 public:
-  MidiSynth mSynth { VoiceAllocator::kPolyModeMono, MidiSynth::kDefaultBlockSize };
-  WDL_TypedBuf<T> mModulationsData; // Sample data for global modulations (e.g. smoothed sustain)
-  WDL_PtrList<T> mModulations; // Ptrlist for global modulations
-  LogParamSmooth<T, kNumModulations> mParamSmoother;
-  sample mParamsToSmooth[kNumModulations];
-
   NesEnvelope* mNesEnvelope1;
   NesEnvelope* mNesEnvelope2;
   NesEnvelope* mNesEnvelope3;

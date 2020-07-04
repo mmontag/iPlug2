@@ -117,7 +117,8 @@ public:
   int UnserializeState(const IByteChunk &chunk, int startPos) override;
 
 private:
-  ChipSmasherDSP<sample> mDSP {1};
+  ChipSmasherDSP<sample> mDSP;
+  // TODO: Figure out why ISender works best with queue size 8
   ISender<1, 8, int> mEnvelopeVisSender;
 #endif
 

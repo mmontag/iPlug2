@@ -13,12 +13,6 @@
 
 using namespace iplug;
 
-enum EModulations
-{
-  kModGainSmoother = 0,
-  kNumModulations,
-};
-
 template<typename T>
 class NesVoice : public SynthVoice   {
 public:
@@ -52,13 +46,7 @@ public:
     mNesChannel->SetPitchBend(pitchBend);
   }
 
-  void SetSampleRateAndBlockSize(double sampleRate, int blockSize) override
-  {
-    mOSC.SetSampleRate(sampleRate);
-  }
-
 public:
-  FastSinOscillator<T> mOSC;
   NesChannel* mNesChannel;
   shared_ptr<Simple_Apu> mNesApu;
 };
