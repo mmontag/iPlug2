@@ -331,7 +331,7 @@ void ChipSmasher::UpdateStepSequencers() {
     seq->SetReleasePoint(nesEnv->mReleasePoint);
     seq->SetLength(nesEnv->mLength);
     seq->SetActionFunc([nesEnv](int stepIdx, float value) {
-      nesEnv->mValues[stepIdx] = (int)iplug::Lerp((float)nesEnv->mMinVal, (float)nesEnv->mMaxVal, value);
+      nesEnv->mValues[stepIdx] = round(iplug::Lerp((float)nesEnv->mMinVal, (float)nesEnv->mMaxVal, value));
     });
     seq->SetSlidersDirty();
   }
