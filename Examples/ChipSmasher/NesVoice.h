@@ -22,15 +22,9 @@ enum EModulations
 template<typename T>
 class NesVoice : public SynthVoice   {
 public:
-  NesVoice(shared_ptr<Simple_Apu> nesApu, vector<NesChannel*> &nesChannels) :
-  mAMPEnv("gain", [&](){ mOSC.Reset(); }), // capture ok on RT thread?
-  mNesChannels(nesChannels),
-  mNesApu(nesApu)
-  {
-    DBGMSG("new Voice: %i control inputs.\n", static_cast<int>(mInputs.size()));
-    // The oscillators are indexed as follows:
-    // (0) Square 1, (1) Square 2, (2) Triangle, (3) Noise, (4) DMC.
-  }
+  NesVoice(shared_ptr<Simple_Apu> nesApu, NesChannel* nesChannel) :
+  mNesChannel(nesChannel),
+  mNesApu(nesApu) {}
 
   bool GetBusy() const override
   {
@@ -43,38 +37,29 @@ public:
   {
     DBGMSG("Trigger mKey %d - level %0.2f\n", mKey, level);
 
-    for (auto channel : mNesChannels) {
-      channel->Trigger(mKey, level, isRetrigger);
-    }
+    mNesChannel->Trigger(mKey, level, isRetrigger);
   }
 
   void Release() override
   {
-    for (auto channel : mNesChannels) {
-      channel->Release();
-    }
+    mNesChannel->Release();
   }
 
   void ProcessSamplesAccumulating(T** inputs, T** outputs, int nInputs, int nOutputs, int startIdx, int nFrames) override
   {
     // inputs to the synthesizer can just fetch a value every block, like this:
     double pitchBend = mInputs[kVoiceControlPitchBend].endValue;
-    for (auto channel : mNesChannels) {
-      channel->SetPitchBend(pitchBend);
-    }
+    mNesChannel->SetPitchBend(pitchBend);
   }
 
   void SetSampleRateAndBlockSize(double sampleRate, int blockSize) override
   {
     mOSC.SetSampleRate(sampleRate);
-    mAMPEnv.SetSampleRate(sampleRate);
   }
 
 public:
   FastSinOscillator<T> mOSC;
-  ADSREnvelope<T> mAMPEnv;
-  vector<NesChannel*> mNesChannels;
+  NesChannel* mNesChannel;
   shared_ptr<Simple_Apu> mNesApu;
-
 };
 
