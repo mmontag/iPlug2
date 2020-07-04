@@ -433,7 +433,7 @@ bool ChipSmasher::OnMessage(int msgTag, int ctrlTag, int dataSize, const void* p
   if(ctrlTag == kCtrlTagBender && msgTag == IWheelControl::kMessageTagSetPitchBendRange)
   {
     const int bendRange = *static_cast<const int*>(pData);
-    mDSP.mSynth.SetPitchBendRange(bendRange);
+    for (auto synth : mDSP.mChannelSynths) synth->SetPitchBendRange(bendRange);
   }
 
   return false;
