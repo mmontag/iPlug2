@@ -29,9 +29,29 @@ public:
 
   virtual int GetPeriod() {
     int arpNote = mEnvs.arp.GetValueAndAdvance();
-    // TODO: scaled fine pitch mode so that fine pitch isn't useless for low notes
-    int basePeriod = mNoteTable[mBaseNote - mNoteTableMidiOffset + arpNote] - mEnvs.pitch.GetValueAndAdvance();
-    int period = clamp(basePeriod / mPitchBendRatio, 8, NesApu::GetMaxPeriodForChannel(mChannel));
+    int finePitch = mEnvs.pitch.GetValueAndAdvance();
+
+    // Absolute fine pitch mode + note table lookup (becomes ineffective at lower notes)
+    //    int basePeriod = mNoteTable[mBaseNote - mNoteTableMidiOffset + arpNote] / (1.f + pow(2.f, finePitch / 72.f));
+    //    int basePeriod = mNoteTable[mBaseNote - mNoteTableMidiOffset + arpNote] - finePitch;
+    //    int period = clamp(basePeriod / mPitchBendRatio, 8, NesApu::GetMaxPeriodForChannel(mChannel));
+    //    return period;
+
+    // Relative fine pitch mode - doesn't use note table
+    static const double clockNtsc = 1789773 / 16.0;
+    static const double note0Freq = 8.1757989156;
+
+    double note = mBaseNote + arpNote + (finePitch / 12.0);
+    double freq = note0Freq * pow(2.0, note / 12.0) * mPitchBendRatio;
+    int idealPeriod;
+    if (mChannel == NesApu::Vrc6Saw)
+      idealPeriod = (ushort)((clockNtsc * 16.0) / (freq * 14.0) - 0.5);
+    else if (mChannel == NesApu::Triangle)
+      idealPeriod = (ushort)(clockNtsc / (freq * 2.0) - 0.5);
+    else
+      idealPeriod = (ushort)(clockNtsc / freq - 0.5);
+
+    int period = clamp(idealPeriod, 8, NesApu::GetMaxPeriodForChannel(mChannel));
     return period;
   }
 
@@ -42,7 +62,8 @@ public:
   }
 
   virtual int GetDuty() {
-    // 2A03 pulse channels duty really only has 3 levels; 0: 1/8, 1: 2/8, 2: 4/8, 3: 2/8 negated
+    // 2A03 pulse duty really only has 3 levels:
+    // 1/8 (0), 1/4 (1), and 1/2 (2). The last is 1/4 inverted (3).
     return mEnvs.duty.GetValueAndAdvance() % 4;
   }
 
@@ -52,7 +73,7 @@ public:
 
   virtual void SetPitchBend(float pitchBend) {
     if (mPitchBend != pitchBend) {
-      mPitchBendRatio = pow(2., pitchBend);
+      mPitchBendRatio = pow(2.f, pitchBend);
       mPitchBend = pitchBend;
     }
   }
@@ -363,6 +384,7 @@ struct NesChannels {
   NesChannelVrc6Pulse vrc6pulse1;
   NesChannelVrc6Pulse vrc6pulse2;
   NesChannelVrc6Saw   vrc6saw;
+  const int numChannels = 8;
 
   vector<NesChannel*> allChannels;
 };
