@@ -106,13 +106,11 @@ public:
 
   void SetLoopPoint(int idx) {
     mLoopPoint = idx;
-    SetSlidersDirty();
     SetDirty(false);
   }
 
   void SetReleasePoint(int idx) {
     mReleasePoint = idx;
-    SetSlidersDirty();
     SetDirty(false);
   }
 
