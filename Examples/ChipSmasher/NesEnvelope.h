@@ -70,8 +70,8 @@ public:
 
   void SetLength(int length) {
     mLength = clamp(length, 1, kMaxSteps);
-//    if (mReleasePoint > mLength) mReleasePoint = mLength;
-//    if (mLoopPoint > mLength) mLoopPoint = mLength;
+    if (mReleasePoint > mLength) mReleasePoint = mLength;
+    if (mLoopPoint >= mLength) mLoopPoint = mLength - 1;
   }
 
   void SetSpeedDivider(int speedDivider) {
@@ -81,13 +81,15 @@ public:
   }
 
   void SetLoop(int loopPoint) {
-    mLoopPoint = clamp(loopPoint, 0, kMaxSteps);
-    if (mReleasePoint < mLoopPoint) mReleasePoint = mLoopPoint;
+    mLoopPoint = clamp(loopPoint, 0, kMaxSteps - 1);
+    if (mReleasePoint <= mLoopPoint) mReleasePoint = mLoopPoint + 1;
+    if (mLength <= mLoopPoint) mLength = mLoopPoint + 1;
   }
 
   void SetRelease(int releasePoint) {
     mReleasePoint = clamp(releasePoint, 1, kMaxSteps);
-    if (mLoopPoint > mReleasePoint) mLoopPoint = mReleasePoint;
+    if (mLoopPoint >= mReleasePoint) mLoopPoint = mReleasePoint - 1;
+    if (mLength < mReleasePoint) mLength = mReleasePoint;
   }
 
   void Serialize(iplug::IByteChunk &chunk) const {
@@ -122,20 +124,20 @@ protected:
 
 struct NesEnvelopes {
   NesEnvelopes()
-    : arp(NesEnvelope(0, -12, 12))
-    , pitch(NesEnvelope(0, -12, 12))
-    , volume(NesEnvelope(15, 0, 15))
+    : volume(NesEnvelope(15, 0, 15))
     , duty(NesEnvelope(2, 0, 7))
-    , allEnvs({&arp, &pitch, &volume, &duty}) {
+    , arp(NesEnvelope(0, -12, 12))
+    , pitch(NesEnvelope(0, -12, 12))
+    , allEnvs({&volume, &duty, &arp, &pitch}) {
     printf("Initialized NesEnvelopes\n");
   }
 
   NesEnvelopes(const NesEnvelopes& other)
-    : arp(other.arp)
-    , pitch(other.pitch)
-    , volume(other.volume)
+    : volume(other.volume)
     , duty(other.duty)
-    , allEnvs({&arp, &pitch, &volume, &duty}) {
+    , arp(other.arp)
+    , pitch(other.pitch)
+    , allEnvs({&volume, &duty, &arp, &pitch}) {
     printf("Copied NesEnvelopes\n");
   }
 
@@ -143,10 +145,10 @@ struct NesEnvelopes {
     printf("Destroying NesEnvelopes\n");
   }
 
-  NesEnvelope arp;
-  NesEnvelope pitch;
   NesEnvelope volume;
   NesEnvelope duty;
+  NesEnvelope arp;
+  NesEnvelope pitch;
 
   array<NesEnvelope*, 4> allEnvs;
 };
