@@ -29,8 +29,8 @@ public:
         NesChannelTriangle(nesApu,  NesApu::Channel::Triangle,    NesEnvelopes()),
         NesChannelNoise(nesApu,     NesApu::Channel::Noise,       NesEnvelopes()),
         NesChannelDpcm(nesApu,      NesApu::Channel::Dpcm,        nesDpcm),
-        NesChannelVrc6Pulse(nesApu, NesApu::Channel::Vrc6Pulse1, NesEnvelopes()),
-        NesChannelVrc6Pulse(nesApu, NesApu::Channel::Vrc6Pulse2, NesEnvelopes()),
+        NesChannelVrc6Pulse(nesApu, NesApu::Channel::Vrc6Pulse1,  NesEnvelopes()),
+        NesChannelVrc6Pulse(nesApu, NesApu::Channel::Vrc6Pulse2,  NesEnvelopes()),
         NesChannelVrc6Saw(nesApu,   NesApu::Channel::Vrc6Saw,     NesEnvelopes())
       );
       SetActiveChannel(NesApu::Channel::Pulse1);
@@ -55,6 +55,8 @@ public:
         mNesEnvelope2 = &(ch->mEnvs.duty);
         mNesEnvelope3 = &(ch->mEnvs.arp);
         mNesEnvelope4 = &(ch->mEnvs.pitch);
+
+        mNesEnvs = (ch->mEnvs.allEnvs);
         break;
       }
     }
@@ -113,6 +115,48 @@ public:
 
   void SetParam(int paramIdx, double value)
   {
+    pair<int, int> chParam = ResolveParamToChannelParam(paramIdx);
+    int ch = chParam.first;
+    int param = chParam.second;
+
+    if (ch > -1) {
+      switch (param) {
+        case kParamChEnabled:
+          SetChannelEnabled(NesApu::Channel(ch), value > 0.5);
+          break;
+        case kParamChVelSens:
+          mNesChannels->allChannels[ch]->SetVelSens(value > 0.5);
+          break;
+        case kParamChLegato:
+          mChannelSynths[ch]->SetLegato(value > 0.5);
+          break;
+        case kParamChKeyTrack:
+          mNesChannels->allChannels[ch]->SetKeyTrack(value > 0.5);
+          break;
+        default:
+          int env = (param - 4) / 4;
+          int envParam = (param - 4) % 4;
+          auto nesEnv = mNesChannels->allChannels[ch]->mEnvs.allEnvs[env];
+          switch(envParam) {
+            case kParamEnvLoopPoint:
+              nesEnv->SetLoop(value);
+              break;
+            case kParamEnvRelPoint:
+              nesEnv->SetRelease(value);
+              break;
+            case kParamEnvLength:
+              nesEnv->SetLength(value);
+              break;
+            case kParamEnvSpeedDiv:
+              nesEnv->SetSpeedDivider(value);
+              break;
+            default:
+              break;
+          }
+      }
+      return;
+    }
+
     switch (paramIdx) {
       case kParamNoteGlideTime:
         for (auto synth : mChannelSynths) synth->SetNoteGlideTime(value / 1000.);
@@ -121,102 +165,6 @@ public:
       case kParamOmniMode:
         mOmniMode = value > 0.5;
         for (auto synth : mChannelSynths) synth->Reset();
-        break;
-
-      case kParamPulse1Enabled:
-      case kParamPulse2Enabled:
-      case kParamTriangleEnabled:
-      case kParamNoiseEnabled:
-      case kParamDpcmEnabled:
-      case kParamVrc6Pulse1Enabled:
-      case kParamVrc6Pulse2Enabled:
-      case kParamVrc6SawEnabled:
-        SetChannelEnabled(NesApu::Channel(paramIdx - kParamPulse1Enabled), value > 0.5);
-        break;
-
-      case kParamPulse1KeyTrack:
-      case kParamPulse2KeyTrack:
-      case kParamTriangleKeyTrack:
-      case kParamNoiseKeyTrack:
-      case kParamDpcmKeyTrack:
-      case kParamVrc6Pulse1KeyTrack:
-      case kParamVrc6Pulse2KeyTrack:
-      case kParamVrc6SawKeyTrack:
-        mNesChannels->allChannels[paramIdx - kParamPulse1KeyTrack]->SetKeyTrack(value > 0.5);
-        break;
-
-      case kParamPulse1VelSens:
-      case kParamPulse2VelSens:
-      case kParamTriangleVelSens:
-      case kParamNoiseVelSens:
-      case kParamDpcmVelSens:
-      case kParamVrc6Pulse1VelSens:
-      case kParamVrc6Pulse2VelSens:
-      case kParamVrc6SawVelSens:
-        mNesChannels->allChannels[paramIdx - kParamPulse1VelSens]->SetVelSens(value > 0.5);
-        break;
-
-      case kParamPulse1Legato:
-      case kParamPulse2Legato:
-      case kParamTriangleLegato:
-      case kParamNoiseLegato:
-      case kParamDpcmLegato:
-      case kParamVrc6Pulse1Legato:
-      case kParamVrc6Pulse2Legato:
-      case kParamVrc6SawLegato:
-        mChannelSynths[paramIdx - kParamPulse1Legato]->SetLegato(value > 0.5);
-        break;
-
-      case kParamEnv1LoopPoint:
-        mNesEnvelope1->SetLoop(value);
-        break;
-      case kParamEnv1RelPoint:
-        mNesEnvelope1->SetRelease(value);
-        break;
-      case kParamEnv1Length:
-        mNesEnvelope1->SetLength(value);
-        break;
-      case kParamEnv1SpeedDiv:
-        mNesEnvelope1->SetSpeedDivider(value);
-        break;
-
-      case kParamEnv2LoopPoint:
-        mNesEnvelope2->SetLoop(value);
-        break;
-      case kParamEnv2RelPoint:
-        mNesEnvelope2->SetRelease(value);
-        break;
-      case kParamEnv2Length:
-        mNesEnvelope2->SetLength(value);
-        break;
-      case kParamEnv2SpeedDiv:
-        mNesEnvelope2->SetSpeedDivider(value);
-        break;
-
-      case kParamEnv3LoopPoint:
-        mNesEnvelope3->SetLoop(value);
-        break;
-      case kParamEnv3RelPoint:
-        mNesEnvelope3->SetRelease(value);
-        break;
-      case kParamEnv3Length:
-        mNesEnvelope3->SetLength(value);
-        break;
-      case kParamEnv3SpeedDiv:
-        mNesEnvelope3->SetSpeedDivider(value);
-        break;
-
-      case kParamEnv4LoopPoint:
-        mNesEnvelope4->SetLoop(value);
-        break;
-      case kParamEnv4RelPoint:
-        mNesEnvelope4->SetRelease(value);
-        break;
-      case kParamEnv4Length:
-        mNesEnvelope4->SetLength(value);
-        break;
-      case kParamEnv4SpeedDiv:
-        mNesEnvelope4->SetSpeedDivider(value);
         break;
 
       default:
@@ -229,6 +177,8 @@ public:
   NesEnvelope* mNesEnvelope2;
   NesEnvelope* mNesEnvelope3;
   NesEnvelope* mNesEnvelope4;
+
+  array<NesEnvelope*, 4>mNesEnvs;
 
   shared_ptr<NesChannels> mNesChannels;
   vector<MidiSynth*> mChannelSynths;

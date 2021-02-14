@@ -4,69 +4,38 @@
 #include "DpcmEditorControl.h"
 #include "KnobControl.h"
 
+
 ChipSmasher::ChipSmasher(const InstanceInfo& info)
 : Plugin(info, MakeConfig(kNumParams, kNumPrograms))
 {
   GetParam(kParamGain)->InitDouble("Gain", 100., 0., 100.0, 0.01, "%");
   GetParam(kParamNoteGlideTime)->InitMilliseconds("Note Glide Time", 0., 0.0, 30.);
-
-  GetParam(kParamPulse1Enabled)->InitBool("Pulse 1 Enabled", false);
-  GetParam(kParamPulse2Enabled)->InitBool("Pulse 2 Enabled", false);
-  GetParam(kParamTriangleEnabled)->InitBool("Triangle Enabled", false);
-  GetParam(kParamNoiseEnabled)->InitBool("Noise Enabled", false);
-  GetParam(kParamDpcmEnabled)->InitBool("DPCM Enabled", false);
-  GetParam(kParamVrc6Pulse1Enabled)->InitBool("VRC6 Pulse 1 Enabled", false);
-  GetParam(kParamVrc6Pulse2Enabled)->InitBool("VRC6 Pulse 2 Enabled", false);
-  GetParam(kParamVrc6SawEnabled)->InitBool("VRC6 Saw Enabled", false);
-
-  GetParam(kParamPulse1KeyTrack)->InitBool("Pulse 1 Key Track", true);
-  GetParam(kParamPulse2KeyTrack)->InitBool("Pulse 2 Key Track", true);
-  GetParam(kParamTriangleKeyTrack)->InitBool("Triangle Key Track", true);
-  GetParam(kParamNoiseKeyTrack)->InitBool("Noise Key Track", true);
-  GetParam(kParamDpcmKeyTrack)->InitBool("DPCM Key Track", true);
-  GetParam(kParamVrc6Pulse1KeyTrack)->InitBool("VRC6 Pulse 1 Key Track", true);
-  GetParam(kParamVrc6Pulse2KeyTrack)->InitBool("VRC6 Pulse 2 Key Track", true);
-  GetParam(kParamVrc6SawKeyTrack)->InitBool("VRC6 Saw Key Track", true);
-
-  GetParam(kParamPulse1VelSens)->InitBool("Pulse 1 Vel Sens", true);
-  GetParam(kParamPulse2VelSens)->InitBool("Pulse 2 Vel Sens", true);
-  GetParam(kParamTriangleVelSens)->InitBool("Triangle Vel Sens", true);
-  GetParam(kParamNoiseVelSens)->InitBool("Noise Vel Sens", true);
-  GetParam(kParamDpcmVelSens)->InitBool("DPCM Vel Sens", true);
-  GetParam(kParamVrc6Pulse1VelSens)->InitBool("VRC6 Pulse 1 Vel Sens", true);
-  GetParam(kParamVrc6Pulse2VelSens)->InitBool("VRC6 Pulse 2 Vel Sens", true);
-  GetParam(kParamVrc6SawVelSens)->InitBool("VRC6 Saw Vel Sens", true);
-
-  GetParam(kParamPulse1Legato)->InitBool("Pulse 1 Legato", false);
-  GetParam(kParamPulse2Legato)->InitBool("Pulse 2 Legato", false);
-  GetParam(kParamTriangleLegato)->InitBool("Triangle Legato", false);
-  GetParam(kParamNoiseLegato)->InitBool("Noise Legato", false);
-  GetParam(kParamDpcmLegato)->InitBool("DPCM Legato", false);
-  GetParam(kParamVrc6Pulse1Legato)->InitBool("VRC6 Pulse 1 Legato", false);
-  GetParam(kParamVrc6Pulse2Legato)->InitBool("VRC6 Pulse 2 Legato", false);
-  GetParam(kParamVrc6SawLegato)->InitBool("VRC6 Saw Legato", false);
-
   GetParam(kParamOmniMode)->InitBool("Omni Mode Enabled", true);
 
-  GetParam(kParamEnv1LoopPoint)->InitInt("Env 1 Loop",    15, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv1RelPoint)->InitInt( "Env 1 Release", 16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv1Length)->InitInt(   "Env 1 Length",  16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv1SpeedDiv)->InitInt( "Env 1 Speed",   1,  1, 8,  "", IParam::kFlagStepped);
-
-  GetParam(kParamEnv2LoopPoint)->InitInt("Env 2 Loop",    15, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv2RelPoint)->InitInt( "Env 2 Release", 16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv2Length)->InitInt(   "Env 2 Length",  16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv2SpeedDiv)->InitInt( "Env 2 Speed",   1,  1, 8,  "", IParam::kFlagStepped);
-
-  GetParam(kParamEnv3LoopPoint)->InitInt("Env 3 Loop",    15, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv3RelPoint)->InitInt( "Env 3 Release", 16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv3Length)->InitInt(   "Env 3 Length",  16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv3SpeedDiv)->InitInt( "Env 3 Speed",   1,  1, 8,  "", IParam::kFlagStepped);
-
-  GetParam(kParamEnv4LoopPoint)->InitInt("Env 4 Loop",    15, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv4RelPoint)->InitInt( "Env 4 Release", 16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv4Length)->InitInt(   "Env 4 Length",  16, 0, 64, "", IParam::kFlagStepped);
-  GetParam(kParamEnv4SpeedDiv)->InitInt( "Env 4 Speed",   1,  1, 8,  "", IParam::kFlagStepped);
+  char const* channelStrs[8] = {"Pulse 1", "Pulse 2", "Triangle", "Noise", "DPCM", "VRC6 Pulse 1", "VRC6 Pulse 2", "VRC6 Saw"};
+  for (int i = 0; i < 8; i++) {
+    string chStr = channelStrs[i];
+    GetParam(ParamFromCh(i, kParamChEnabled    ))->InitBool((chStr + " Enabled"      ).c_str(), false);
+    GetParam(ParamFromCh(i, kParamChKeyTrack   ))->InitBool((chStr + " Key Track"    ).c_str(), true);
+    GetParam(ParamFromCh(i, kParamChVelSens    ))->InitBool((chStr + " Vel Sens"     ).c_str(), true);
+    GetParam(ParamFromCh(i, kParamChLegato     ))->InitBool((chStr + " Legato"       ).c_str(), false);
+    GetParam(ParamFromCh(i, kParamEnv1LoopPoint))->InitInt ((chStr + " Env 1 Loop"   ).c_str(), 15, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv1RelPoint ))->InitInt ((chStr + " Env 1 Release").c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv1Length   ))->InitInt ((chStr + " Env 1 Length" ).c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv1SpeedDiv ))->InitInt ((chStr + " Env 1 Speed"  ).c_str(), 1, 1, 8,   "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv2LoopPoint))->InitInt ((chStr + " Env 2 Loop"   ).c_str(), 15, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv2RelPoint ))->InitInt ((chStr + " Env 2 Release").c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv2Length   ))->InitInt ((chStr + " Env 2 Length" ).c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv2SpeedDiv ))->InitInt ((chStr + " Env 2 Speed"  ).c_str(), 1, 1, 8,   "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv3LoopPoint))->InitInt ((chStr + " Env 3 Loop"   ).c_str(), 15, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv3RelPoint ))->InitInt ((chStr + " Env 3 Release").c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv3Length   ))->InitInt ((chStr + " Env 3 Length" ).c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv3SpeedDiv ))->InitInt ((chStr + " Env 3 Speed"  ).c_str(), 1, 1, 8,   "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv4LoopPoint))->InitInt ((chStr + " Env 4 Loop"   ).c_str(), 15, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv4RelPoint ))->InitInt ((chStr + " Env 4 Release").c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv4Length   ))->InitInt ((chStr + " Env 4 Length" ).c_str(), 16, 0, 64, "", IParam::kFlagStepped);
+    GetParam(ParamFromCh(i, kParamEnv4SpeedDiv ))->InitInt ((chStr + " Env 4 Speed"  ).c_str(), 1, 1, 8,   "", IParam::kFlagStepped);
+   }
 
 #if IPLUG_EDITOR // http://bit.ly/2S64BDd
   mMakeGraphicsFunc = [&]() {
@@ -167,20 +136,19 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
     IRECT channelPanel = b.GetFromLeft(84);
 
     IRECT channelButtonRect = channelPanel.GetFromTop(40.f);
-    for (auto paramTuples : vector<tuple<int, NesApu::Channel, string>>{{kParamPulse1Enabled,     NesApu::Channel::Pulse1,     "Pulse 1"},
-                                                                        {kParamPulse2Enabled,     NesApu::Channel::Pulse2,     "Pulse 2"},
-                                                                        {kParamTriangleEnabled,   NesApu::Channel::Triangle,   "Triangle"},
-                                                                        {kParamNoiseEnabled,      NesApu::Channel::Noise,      "Noise"},
-                                                                        {kParamDpcmEnabled,       NesApu::Channel::Dpcm,       "DPCM"},
-                                                                        {kParamVrc6Pulse1Enabled, NesApu::Channel::Vrc6Pulse1, "Pulse 3"},
-                                                                        {kParamVrc6Pulse2Enabled, NesApu::Channel::Vrc6Pulse2, "Pulse 4"},
-                                                                        {kParamVrc6SawEnabled,    NesApu::Channel::Vrc6Saw,    "Saw"}}) {
-      auto param = get<int>(paramTuples);
-      auto channel = get<NesApu::Channel>(paramTuples);
+    for (auto paramTuples : vector<tuple<NesApu::Channel, string>>{{NesApu::Channel::Pulse1,     "Pulse 1"},
+                                                                   {NesApu::Channel::Pulse2,     "Pulse 2"},
+                                                                   {NesApu::Channel::Triangle,   "Triangle"},
+                                                                   {NesApu::Channel::Noise,      "Noise"},
+                                                                   {NesApu::Channel::Dpcm,       "DPCM"},
+                                                                   {NesApu::Channel::Vrc6Pulse1, "Pulse 3"},
+                                                                   {NesApu::Channel::Vrc6Pulse2, "Pulse 4"},
+                                                                   {NesApu::Channel::Vrc6Saw,    "Saw"}}) {
+      auto ch = get<NesApu::Channel>(paramTuples);
       auto label = get<string>(paramTuples).c_str();
-      pGraphics->AttachControl(new IVToggleControl(channelButtonRect.GetFromRight(40.f), param, label, noLabelStyle), kNoTag, "NES");
-      pGraphics->AttachControl(new IVButtonControl(channelButtonRect.GetReducedFromRight(40.f), [this, channel, param](IControl* pCaller){
-        bool isDpcm = channel == NesApu::Channel::Dpcm;
+      pGraphics->AttachControl(new IVToggleControl(channelButtonRect.GetFromRight(40.f), ParamFromCh(ch, kParamChEnabled), label, noLabelStyle), kNoTag, "NES");
+      pGraphics->AttachControl(new IVButtonControl(channelButtonRect.GetReducedFromRight(40.f), [this, ch](IControl* pCaller){
+        bool isDpcm = ch == NesApu::Channel::Dpcm;
         GetUI()->GetControlWithTag(kCtrlTagDpcmEditor)->Hide(!isDpcm);
         GetUI()->ForControlInGroup("StepSequencers", [=](IControl& control) {
           control.Hide(isDpcm);
@@ -190,26 +158,31 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
         });
 
         // Reassign channel-specific toggles
-        GetUI()->GetControlWithTag(kCtrlTagKeyTrack)->SetParamIdx(param - kParamPulse1Enabled + kParamPulse1KeyTrack);
-        GetUI()->GetControlWithTag(kCtrlTagVelSens)->SetParamIdx(param - kParamPulse1Enabled + kParamPulse1VelSens);
-        GetUI()->GetControlWithTag(kCtrlTagLegato)->SetParamIdx(param - kParamPulse1Enabled + kParamPulse1Legato);
+        GetUI()->GetControlWithTag(kCtrlTagKeyTrack)->SetParamIdx(ParamFromCh(ch, kParamChKeyTrack));
+        GetUI()->GetControlWithTag(kCtrlTagVelSens)->SetParamIdx(ParamFromCh(ch, kParamChVelSens));
+        GetUI()->GetControlWithTag(kCtrlTagLegato)->SetParamIdx(ParamFromCh(ch, kParamChLegato));
 
-        mDSP.SetActiveChannel(channel);
+        // Reassign all step sequencer knobs
+        for (int i = 0; i < 16; i++) {
+          GetUI()->GetControlWithTag(kCtrlTagKnobs + i)->SetParamIdx(ParamFromCh(ch, kParamEnv1LoopPoint + i));
+        }
+
+        mDSP.SetActiveChannel(ch);
         UpdateStepSequencers();
         SendCurrentParamValuesFromDelegate();
       }, label, style), kNoTag, "NES");
       channelButtonRect.Translate(0, channelButtonRect.H());
     }
 
-    auto keyTrackButton = new IVToggleControl(channelButtonRect, kParamPulse1KeyTrack, "Key Track", style);
+    auto keyTrackButton = new IVToggleControl(channelButtonRect, ParamFromCh(0, kParamChKeyTrack), "Key Track", style);
     pGraphics->AttachControl(keyTrackButton, kCtrlTagKeyTrack, "NES");
     channelButtonRect.Translate(0, channelButtonRect.H());
 
-    auto velSensButton = new IVToggleControl(channelButtonRect, kParamPulse1VelSens, "Vel Sens", style);
+    auto velSensButton = new IVToggleControl(channelButtonRect, ParamFromCh(0, kParamChVelSens), "Vel Sens", style);
     pGraphics->AttachControl(velSensButton, kCtrlTagVelSens, "NES");
     channelButtonRect.Translate(0, channelButtonRect.H());
 
-    auto legatoButton = new IVToggleControl(channelButtonRect, kParamPulse1Legato, "Legato", style);
+    auto legatoButton = new IVToggleControl(channelButtonRect, ParamFromCh(0, kParamChLegato), "Legato", style);
     pGraphics->AttachControl(legatoButton, kCtrlTagLegato, "NES");
     channelButtonRect.Translate(0, channelButtonRect.H());
 
@@ -242,7 +215,7 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
 
     const IRECT editorPanel = b.GetReducedFromLeft(100);
 
-    auto createEnvelopePanel = [=](IRECT rect, const char* label, float minVal, float maxVal, NesEnvelope* nesEnv, int lpP, int rpP, int lP, int sdP, int ctrlTag, IColor color) {
+    auto createEnvelopePanel = [=](IRECT rect, const char* label, float minVal, float maxVal, int envIdx, int baseParam, int ctrlTag, IColor color) {
 
       auto stepSeq = new StepSequencer(rect.GetReducedFromBottom(kKnobHeight + 16.f),
                                        label,
@@ -257,44 +230,58 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
         .WithLabelText(style.labelText.WithAlign(EAlign::Center).WithFont("Normal").WithSize(15.f))
         .WithValueText(style.valueText.WithFont("Bold"));
 
+      int loopParam = baseParam + 0;
+      int relParam  = baseParam + 1;
+      int lenParam  = baseParam + 2;
+      int spdParam  = baseParam + 3;
+
       // Loop
-      auto lpC = new KnobControl(knobBox.SubRectHorizontal(4, 0), lpP, "Loop", knobStyle, false, false);
+      auto lpC = new KnobControl(knobBox.SubRectHorizontal(4, 0), loopParam, "Loop", knobStyle, false, false);
       lpC->SetActionFunction([=](IControl *pCaller) {
-        stepSeq->SetLoopPoint(pCaller->GetParam()->Int());
+//        mDSP.mNesEnvs[envIdx]->SetLoop(pCaller->GetParam()->Int());
+
+        UpdateStepSequencerAndParamsFromEnv(baseParam, mDSP.mNesEnvs[envIdx], stepSeq);
+        SendCurrentParamValuesFromDelegate();
+        stepSeq->SetDirty(false);
       });
-      pGraphics->AttachControl(lpC, kNoTag, "Knobs");
+      pGraphics->AttachControl(lpC, kCtrlTagKnobs + envIdx * 4 + 0, "Knobs");
       stepSeq->SetLoopPoint(GetParam(kParamEnv1LoopPoint)->Int());
 
       // Release
-      auto rpC = new KnobControl(knobBox.SubRectHorizontal(4, 1), rpP, "Release", knobStyle, false, false);
+      auto rpC = new KnobControl(knobBox.SubRectHorizontal(4, 1), relParam, "Release", knobStyle, false, false);
       rpC->SetActionFunction([=](IControl *pCaller) {
-        stepSeq->SetReleasePoint(pCaller->GetParam()->Int());
+//        mDSP.mNesEnvs[envIdx]->SetRelease(pCaller->GetParam()->Int());
+        UpdateStepSequencerAndParamsFromEnv(baseParam, mDSP.mNesEnvs[envIdx], stepSeq);
+        SendCurrentParamValuesFromDelegate();
+        stepSeq->SetDirty(false);
       });
-      pGraphics->AttachControl(rpC, kNoTag, "Knobs");
+      pGraphics->AttachControl(rpC, kCtrlTagKnobs + envIdx * 4 + 1, "Knobs");
       stepSeq->SetReleasePoint(GetParam(kParamEnv1LoopPoint)->Int());
 
       // Length
-      auto lC = new KnobControl(knobBox.SubRectHorizontal(4, 2), lP, "Length", knobStyle, false, false);
+      auto lC = new KnobControl(knobBox.SubRectHorizontal(4, 2), lenParam, "Length", knobStyle, false, false);
       lC->SetActionFunction([=](IControl *pCaller) {
-        stepSeq->SetLength(pCaller->GetParam()->Int());
+//        mDSP.mNesEnvs[envIdx]->SetLength(pCaller->GetParam()->Int());
+        UpdateStepSequencerAndParamsFromEnv(baseParam, mDSP.mNesEnvs[envIdx], stepSeq);
+        SendCurrentParamValuesFromDelegate();
+        stepSeq->SetDirty(false);
       });
-      pGraphics->AttachControl(lC, kNoTag, "Knobs");
+      pGraphics->AttachControl(lC, kCtrlTagKnobs + envIdx * 4 + 2, "Knobs");
       stepSeq->SetLength(GetParam(kParamEnv1LoopPoint)->Int());
 
       // Speed
-      auto sC = new KnobControl(knobBox.SubRectHorizontal(4, 3), sdP, "Speed", knobStyle, false, false);
-      pGraphics->AttachControl(sC, kNoTag, "Knobs");
+      auto sC = new KnobControl(knobBox.SubRectHorizontal(4, 3), spdParam, "Speed", knobStyle, false, false);
+      sC->SetActionFunction([=](IControl *pCaller) {
+        mDSP.mNesEnvs[envIdx]->SetSpeedDivider(pCaller->GetParam()->Int());
+      });
+      pGraphics->AttachControl(sC, kCtrlTagKnobs + envIdx * 4 + 3, "Knobs");
     };
 
     IRECT envPanel = editorPanel.GetPadded(8);
-    createEnvelopePanel(envPanel.GetGridCell(0, 2, 2).GetPadded(-8), "VOLUME", 0, 15, mDSP.mNesEnvelope1,
-      kParamEnv1LoopPoint, kParamEnv1RelPoint, kParamEnv1Length, kParamEnv1SpeedDiv, kCtrlTagEnvelope1, IColor::FromColorCodeStr("#CC2626"));
-    createEnvelopePanel(envPanel.GetGridCell(1, 2, 2).GetPadded(-8), "DUTY", 0, 7, mDSP.mNesEnvelope2,
-      kParamEnv2LoopPoint, kParamEnv2RelPoint, kParamEnv2Length, kParamEnv2SpeedDiv, kCtrlTagEnvelope2, IColor::FromColorCodeStr("#DE5E33"));
-    createEnvelopePanel(envPanel.GetGridCell(2, 2, 2).GetPadded(-8), "PITCH", -12, 12, mDSP.mNesEnvelope3,
-      kParamEnv3LoopPoint, kParamEnv3RelPoint, kParamEnv3Length, kParamEnv3SpeedDiv, kCtrlTagEnvelope3, IColor::FromColorCodeStr("#53AD8E"));
-    createEnvelopePanel(envPanel.GetGridCell(3, 2, 2).GetPadded(-8), "FINE PITCH", -12, 12, mDSP.mNesEnvelope4,
-      kParamEnv4LoopPoint, kParamEnv4RelPoint, kParamEnv4Length, kParamEnv4SpeedDiv, kCtrlTagEnvelope4, IColor::FromColorCodeStr("#747ACD"));
+    createEnvelopePanel(envPanel.GetGridCell(0, 2, 2).GetPadded(-8), "VOLUME", 0, 15, 0, ParamFromCh(0, kParamEnv1LoopPoint), kCtrlTagEnvelope1, IColor::FromColorCodeStr("#CC2626"));
+    createEnvelopePanel(envPanel.GetGridCell(1, 2, 2).GetPadded(-8), "DUTY", 0, 7, 1, ParamFromCh(1, kParamEnv2LoopPoint), kCtrlTagEnvelope2, IColor::FromColorCodeStr("#DE5E33"));
+    createEnvelopePanel(envPanel.GetGridCell(2, 2, 2).GetPadded(-8), "PITCH", -12, 12, 2, ParamFromCh(2, kParamEnv3LoopPoint), kCtrlTagEnvelope3, IColor::FromColorCodeStr("#53AD8E"));
+    createEnvelopePanel(envPanel.GetGridCell(3, 2, 2).GetPadded(-8), "FINE PITCH", -12, 12, 3, ParamFromCh(3, kParamEnv4LoopPoint), kCtrlTagEnvelope4, IColor::FromColorCodeStr("#747ACD"));
 
     UpdateStepSequencers();
 
@@ -309,69 +296,89 @@ ChipSmasher::ChipSmasher(const InstanceInfo& info)
 }
 
 void ChipSmasher::OnPresetsModified() {
-  printf("- PRESETS MODIFIED -\n");
+  printf("-- Presets modified\n");
   UpdateStepSequencers();
   GetUI()->ForControlInGroup("DpcmEditor", [](IControl &control) { control.SetDirty(false); });
 
   IPluginBase::OnPresetsModified();
 }
 
+void ChipSmasher::UpdateStepSequencerAndParamsFromEnv(int paramEnvLoopPoint, NesEnvelope* env, StepSequencer* seq) {
+  // Update params
+  GetParam(paramEnvLoopPoint + 0)->Set(env->mLoopPoint);
+  GetParam(paramEnvLoopPoint + 1)->Set(env->mReleasePoint);
+  GetParam(paramEnvLoopPoint + 2)->Set(env->mLength);
+  GetParam(paramEnvLoopPoint + 3)->Set(env->mSpeedDivider);
+
+  // Update Step Sequencer
+  seq->SetLoopPoint(env->mLoopPoint);
+  seq->SetReleasePoint(env->mReleasePoint);
+  seq->SetLength(env->mLength);
+}
+
+struct SeqGroup {
+  int ctrlTag;
+  int param;
+  NesEnvelope* env;
+};
+
 void ChipSmasher::UpdateStepSequencers() {
   // update all envelope values
-  for (auto ctrlToEnv : vector<pair<int, NesEnvelope *>>{{kCtrlTagEnvelope1, mDSP.mNesEnvelope1},
-                                                         {kCtrlTagEnvelope2, mDSP.mNesEnvelope2},
-                                                         {kCtrlTagEnvelope3, mDSP.mNesEnvelope3},
-                                                         {kCtrlTagEnvelope4, mDSP.mNesEnvelope4}}) {
-    auto seq = dynamic_cast<StepSequencer *>(GetUI()->GetControlWithTag(ctrlToEnv.first));
-    auto nesEnv = ctrlToEnv.second;
+  for (auto seqGroup : vector<SeqGroup>{{kCtrlTagEnvelope1, kParamEnv1LoopPoint, mDSP.mNesEnvelope1},
+                                        {kCtrlTagEnvelope2, kParamEnv2LoopPoint, mDSP.mNesEnvelope2},
+                                        {kCtrlTagEnvelope3, kParamEnv3LoopPoint, mDSP.mNesEnvelope3},
+                                        {kCtrlTagEnvelope4, kParamEnv4LoopPoint, mDSP.mNesEnvelope4}}) {
+    auto seq = dynamic_cast<StepSequencer *>(GetUI()->GetControlWithTag(seqGroup.ctrlTag));
+    auto nesEnv = seqGroup.env;
     for (int i = 0; i < 64; i++) {
       seq->SetValue(float(nesEnv->mValues[i] - nesEnv->mMinVal) / float(nesEnv->mMaxVal - nesEnv->mMinVal), i);
     }
-    seq->SetLoopPoint(nesEnv->mLoopPoint);
-    seq->SetReleasePoint(nesEnv->mReleasePoint);
-    seq->SetLength(nesEnv->mLength);
+
+    UpdateStepSequencerAndParamsFromEnv(seqGroup.param, nesEnv, seq);
+
     seq->SetActionFunc([nesEnv](int stepIdx, float value) {
       nesEnv->mValues[stepIdx] = round(iplug::Lerp((float)nesEnv->mMinVal, (float)nesEnv->mMaxVal, value));
     });
     seq->SetSlidersDirty();
   }
-
-  // update all env params sliders/knobs
-  GetParam(kParamEnv1LoopPoint)->Set(mDSP.mNesEnvelope1->mLoopPoint);
-  GetParam(kParamEnv2LoopPoint)->Set(mDSP.mNesEnvelope2->mLoopPoint);
-  GetParam(kParamEnv3LoopPoint)->Set(mDSP.mNesEnvelope3->mLoopPoint);
-  GetParam(kParamEnv4LoopPoint)->Set(mDSP.mNesEnvelope4->mLoopPoint);
-
-  GetParam(kParamEnv1RelPoint)->Set(mDSP.mNesEnvelope1->mReleasePoint);
-  GetParam(kParamEnv2RelPoint)->Set(mDSP.mNesEnvelope2->mReleasePoint);
-  GetParam(kParamEnv3RelPoint)->Set(mDSP.mNesEnvelope3->mReleasePoint);
-  GetParam(kParamEnv4RelPoint)->Set(mDSP.mNesEnvelope4->mReleasePoint);
-
-  GetParam(kParamEnv1Length)->Set(mDSP.mNesEnvelope1->mLength);
-  GetParam(kParamEnv2Length)->Set(mDSP.mNesEnvelope2->mLength);
-  GetParam(kParamEnv3Length)->Set(mDSP.mNesEnvelope3->mLength);
-  GetParam(kParamEnv4Length)->Set(mDSP.mNesEnvelope4->mLength);
-
-  GetParam(kParamEnv1SpeedDiv)->Set(mDSP.mNesEnvelope1->mSpeedDivider);
-  GetParam(kParamEnv2SpeedDiv)->Set(mDSP.mNesEnvelope2->mSpeedDivider);
-  GetParam(kParamEnv3SpeedDiv)->Set(mDSP.mNesEnvelope3->mSpeedDivider);
-  GetParam(kParamEnv4SpeedDiv)->Set(mDSP.mNesEnvelope4->mSpeedDivider);
 }
 
 #if IPLUG_DSP
 void ChipSmasher::ProcessBlock(sample** inputs, sample** outputs, int nFrames)
 {
   mDSP.ProcessBlock(nullptr, outputs, 2, nFrames, mTimeInfo.mPPQPos, mTimeInfo.mTransportIsRunning);
+
+  // 1/60 sec = 735 samples @ 44100 hz
+
+  // 20% cpu while 4 envs running
+//  if (GetUI() && GetUI()->GetControlWithTag(kCtrlTagEnvelope1)) {
+//    dynamic_cast<StepSequencer *>(GetUI()->GetControlWithTag(kCtrlTagEnvelope1))->SetHighlightIdx(mDSP.mNesEnvelope1->GetStep());
+//    dynamic_cast<StepSequencer *>(GetUI()->GetControlWithTag(kCtrlTagEnvelope2))->SetHighlightIdx(mDSP.mNesEnvelope2->GetStep());
+//    dynamic_cast<StepSequencer *>(GetUI()->GetControlWithTag(kCtrlTagEnvelope3))->SetHighlightIdx(mDSP.mNesEnvelope3->GetStep());
+//    dynamic_cast<StepSequencer *>(GetUI()->GetControlWithTag(kCtrlTagEnvelope4))->SetHighlightIdx(mDSP.mNesEnvelope4->GetStep());
+//  }
+
+//  if (ss1) {
+//    ss1->SetHighlightIdx(mDSP.mNesEnvelope1->GetStep());
+//    ss2->SetHighlightIdx(mDSP.mNesEnvelope2->GetStep());
+//    ss3->SetHighlightIdx(mDSP.mNesEnvelope3->GetStep());
+//    ss4->SetHighlightIdx(mDSP.mNesEnvelope4->GetStep());
+//  }
+
+  // 6% cpu while 4 envs running @ 4096 buffer size
   mEnvelopeVisSender.PushData({kCtrlTagEnvelope1, {mDSP.mNesEnvelope1->GetStep()}});
   mEnvelopeVisSender.PushData({kCtrlTagEnvelope2, {mDSP.mNesEnvelope2->GetStep()}});
   mEnvelopeVisSender.PushData({kCtrlTagEnvelope3, {mDSP.mNesEnvelope3->GetStep()}});
   mEnvelopeVisSender.PushData({kCtrlTagEnvelope4, {mDSP.mNesEnvelope4->GetStep()}});
-  mEnvelopeVisSender.TransmitData(*this);
+
+  // Smoother display update, but more CPU usage, and bad to do from the DSP thread.
+  // mEnvelopeVisSender.TransmitData(*this);
 }
 
 void ChipSmasher::OnIdle()
 {
-//  mEnvelopeVisSender.TransmitData(*this);
+  // More jittery display update (not smooth 60 fps), but less CPU usage.
+  mEnvelopeVisSender.TransmitData(*this);
 }
 
 void ChipSmasher::OnReset()

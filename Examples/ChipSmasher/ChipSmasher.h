@@ -3,74 +3,66 @@
 #include "IPlug_include_in_plug_hdr.h"
 #include "IControls.h"
 
+class StepSequencer;
+
 const int kNumPrograms = 8;
 
 const int kEnvelopeSteps = 64;
-const int kNumEnvParams = 68;
+//const int kNumEnvParams = 68;
+
+enum EEnvParams {
+  kParamEnvLoopPoint,
+  kParamEnvRelPoint,
+  kParamEnvLength,
+  kParamEnvSpeedDiv,
+
+  kNumEnvParams
+};
+
+enum EChParams {
+  kParamChEnabled = 0,
+  kParamChKeyTrack,
+  kParamChVelSens,
+  kParamChLegato,
+  // 16 envelope parameters, must be contiguous
+  kParamEnv1LoopPoint,
+  kParamEnv1RelPoint,
+  kParamEnv1Length,
+  kParamEnv1SpeedDiv,
+  kParamEnv2LoopPoint,
+  kParamEnv2RelPoint,
+  kParamEnv2Length,
+  kParamEnv2SpeedDiv,
+  kParamEnv3LoopPoint,
+  kParamEnv3RelPoint,
+  kParamEnv3Length,
+  kParamEnv3SpeedDiv,
+  kParamEnv4LoopPoint,
+  kParamEnv4RelPoint,
+  kParamEnv4Length,
+  kParamEnv4SpeedDiv,
+
+  kNumChParams
+};
 
 enum EParams
 {
   kParamGain = 0,
   kParamNoteGlideTime,
   kParamOmniMode,
+  kParamChannelBase,
 
-  kParamPulse1Enabled,
-  kParamPulse2Enabled,
-  kParamTriangleEnabled,
-  kParamNoiseEnabled,
-  kParamDpcmEnabled,
-  kParamVrc6Pulse1Enabled,
-  kParamVrc6Pulse2Enabled,
-  kParamVrc6SawEnabled,
-
-  kParamPulse1KeyTrack,
-  kParamPulse2KeyTrack,
-  kParamTriangleKeyTrack,
-  kParamNoiseKeyTrack,
-  kParamDpcmKeyTrack,
-  kParamVrc6Pulse1KeyTrack,
-  kParamVrc6Pulse2KeyTrack,
-  kParamVrc6SawKeyTrack,
-
-  kParamPulse1VelSens,
-  kParamPulse2VelSens,
-  kParamTriangleVelSens,
-  kParamNoiseVelSens,
-  kParamDpcmVelSens,
-  kParamVrc6Pulse1VelSens,
-  kParamVrc6Pulse2VelSens,
-  kParamVrc6SawVelSens,
-
-  kParamPulse1Legato,
-  kParamPulse2Legato,
-  kParamTriangleLegato,
-  kParamNoiseLegato,
-  kParamDpcmLegato,
-  kParamVrc6Pulse1Legato,
-  kParamVrc6Pulse2Legato,
-  kParamVrc6SawLegato,
-
-  kParamEnv1LoopPoint,
-  kParamEnv1RelPoint,
-  kParamEnv1Length,
-  kParamEnv1SpeedDiv,
-
-  kParamEnv2LoopPoint,
-  kParamEnv2RelPoint,
-  kParamEnv2Length,
-  kParamEnv2SpeedDiv,
-
-  kParamEnv3LoopPoint,
-  kParamEnv3RelPoint,
-  kParamEnv3Length,
-  kParamEnv3SpeedDiv,
-
-  kParamEnv4LoopPoint,
-  kParamEnv4RelPoint,
-  kParamEnv4Length,
-  kParamEnv4SpeedDiv,
-  kNumParams
+  kNumParams = kParamChannelBase + kNumChParams * 8
 };
+
+std::pair<int, int> ResolveParamToChannelParam(int paramIdx) {
+  if (paramIdx >= kParamChannelBase) {
+    int ch = (paramIdx - kParamChannelBase) / kNumChParams;
+    int param = (paramIdx - kParamChannelBase) % kNumChParams;
+    return {ch, param};
+  }
+  return {-1, -1};
+}
 
 #if IPLUG_DSP
 // will use EParams in ChipSmasher_DSP.h
@@ -90,7 +82,9 @@ enum EControlTags
   kCtrlTagEnvelope3,
   kCtrlTagEnvelope4,
   kCtrlTagDpcmEditor,
-  kNumCtrlTags
+  // 16 implicit knob control tags, must be contiguous
+  kCtrlTagKnobs,
+  kNumCtrlTags = kCtrlTagKnobs + 16
 };
 
 using namespace iplug;
@@ -116,11 +110,35 @@ public:
 
   int UnserializeState(const IByteChunk &chunk, int startPos) override;
 
+  int ParamFromCh(int channelNum, int subParam) {
+    return kParamChannelBase + channelNum * kNumChParams + subParam;
+  }
+
 private:
   ChipSmasherDSP<sample> mDSP;
   // TODO: Figure out why ISender works best with queue size 8
   ISender<1, 8, int> mEnvelopeVisSender;
+
+  StepSequencer* ss1;
+  StepSequencer* ss2;
+  StepSequencer* ss3;
+  StepSequencer* ss4;
 #endif
 
   void UpdateStepSequencers();
+
+  // TODO(montag): Code smell. State flows in two directions.
+  //
+  // This is invoked in the param change callback functions because the envelopes have "coupled" params
+  // (e.g., loop point must be less than length), and those are computed in the NesEnvelope class.
+  // Therefore, the UI must update NesEnvelope, then immediately read the state back out after the
+  // constraints are enforced.
+  //
+  // I did not want the UI to know about the constraints between the parameters.
+  //
+  // This func is also invoked when a preset is loaded, because the NesChannels are updated directly
+  // during preset deserialization rather than being updated through the param system (I think).
+  //
+  // In any case, there is room for improvement here.
+  void UpdateStepSequencerAndParamsFromEnv(int paramEnvLoopPoint, NesEnvelope *env, StepSequencer* seq);
 };
