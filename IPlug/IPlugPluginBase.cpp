@@ -545,6 +545,7 @@ void IPluginBase::DumpPresetSrcCode(const char* filename, const char* paramEnumN
     int i, n = NParams();
     FILE* fp = fopen(filename, "w");
     fprintf(fp, "  MakePresetFromNamedParams(\"name\", %d", n);
+    printf("  MakePresetFromNamedParams(\"name\", %d", n);
     for (i = 0; i < n; ++i)
     {
       const IParam* pParam = GetParam(i);
@@ -565,9 +566,11 @@ void IPluginBase::DumpPresetSrcCode(const char* filename, const char* paramEnumN
           sprintf(paramVal, "%.6f", pParam->Value());
           break;
       }
-      fprintf(fp, ",\n    %s, %s", paramEnumNames[i], paramVal);
+      fprintf(fp, ",\n    %s, %s", pParam->GetName(), paramVal);
+      printf(",\n    %s, %s", pParam->GetName(), paramVal);
     }
     fprintf(fp, ");\n");
+    printf(");\n");
     fclose(fp);
   }
 }

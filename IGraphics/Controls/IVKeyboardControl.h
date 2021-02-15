@@ -282,13 +282,38 @@ public:
         }
         DrawKey(g, keyBounds, (i == mHighlight ? mHK_COLOR : mBK_COLOR.WithContrast(IsDisabled() ? GRAYED_ALPHA : 0.f)));
 
+        float insetToWidthRatio = 0.5f;
+        float highlight2Size = 0.04f;
+        IColor highlight2Color = IColor(140, 255, 255, 255);
+
         if (GetKeyIsPressed(i))
         {
           // draw pressed black key
           IColor cBP = mPK_COLOR;
           cBP.A = (int) mBKAlpha;
           g.FillRect(cBP, keyBounds, &mBlend);
+          insetToWidthRatio = 0.35f;
+          highlight2Size = 0.3f;
+          highlight2Color = IColor(10, 255, 255, 255);
         }
+
+        IRECT highlightBounds = keyBounds.GetPadded(-0.15f * keyBounds.W());
+        highlightBounds.T = keyBounds.T;
+        highlightBounds.B -= insetToWidthRatio * keyBounds.W();
+        IColor cHighlight = IColor(70, 255, 255, 255);
+//          g.FillRect(cHighlight, highlightBounds, &mBlend);
+
+        IRECT r = highlightBounds; //.FracRectVertical(0.4, true);
+        g.PathRect(r);
+        g.PathFill(IPattern::CreateLinearGradient(r,
+          EDirection::Vertical,
+          {{COLOR_TRANSPARENT, 0.f},{cHighlight, 1.f}}));
+
+        r = highlightBounds.FracRectVertical(highlight2Size, false);
+        g.PathRect(r);
+        g.PathFill(IPattern::CreateLinearGradient(r,
+          EDirection::Vertical,
+          {{COLOR_TRANSPARENT, 0.f},{highlight2Color, 1.f}}));
 
         if(!mRoundedKeys)
         {
@@ -700,7 +725,7 @@ protected:
   bool mShowNoteAndVel = false;
   float mWKWidth = 0.f;
   float mBKWidthRatio = 0.6f;
-  float mBKHeightRatio = 0.6f;
+  float mBKHeightRatio = 0.65f;
   float mBKAlpha = 100.f;
   int mLastTouchedKey = -1;
   float mLastVelocity = 0.f;
@@ -717,7 +742,7 @@ protected:
 class IWheelControl : public ISliderControlBase
 {
   static constexpr int kSpringAnimationTime = 50;
-  static constexpr int kNumRungs = 10;
+  static constexpr int kNumRungs = 20;
 public:
   static constexpr int kMessageTagSetPitchBendRange = 0;
 
@@ -767,25 +792,27 @@ public:
     
     // NanoVG only has 2 stop gradients
     IRECT r = handleBounds.FracRectVertical(0.5, true);
+    IColor c1 = IColor(255, 40, 40, 40);
+    IColor c2 = IColor(255, 90, 90, 90);
     g.PathRect(r);
-    g.PathFill(IPattern::CreateLinearGradient(r, EDirection::Vertical, {{COLOR_BLACK, 0.f},{COLOR_MID_GRAY, 1.f}}));
+    g.PathFill(IPattern::CreateLinearGradient(r, EDirection::Vertical, {{c1, 0.f},{c2, 1.f}}));
     r = handleBounds.FracRectVertical(0.51f, false); // slight overlap
     g.PathRect(r);
-    g.PathFill(IPattern::CreateLinearGradient(r, EDirection::Vertical, {{COLOR_MID_GRAY, 0.f},{COLOR_BLACK, 1.f}}));
+    g.PathFill(IPattern::CreateLinearGradient(r, EDirection::Vertical, {{c2, 0.f},{c1, 1.f}}));
 
+    const float cutoutHeight = handleBounds.W() * 0.8f;
     const float value = static_cast<float>(GetValue());
-    const float y = (handleBounds.H() - (stepSize)) * value;
-    const float triangleRamp = std::fabs(value-0.5f) * 2.f;
+    const float y = (handleBounds.H() - cutoutHeight) * value;
     
     g.DrawBitmap(mLayer->GetBitmap(), handleBounds, 0, (int) y);
   
-    const IRECT cutoutBounds = handleBounds.GetFromBottom(stepSize).GetTranslated(0, -y);
+    const IRECT cutoutBounds = handleBounds.GetFromBottom(cutoutHeight).GetTranslated(0, -y);
     g.PathRect(cutoutBounds);
     g.PathFill(IPattern::CreateLinearGradient(cutoutBounds, EDirection::Vertical,
     {
       //TODO: this can be improved
-      {COLOR_BLACK.WithContrast(iplug::Lerp(0.f, 0.5f, triangleRamp)), 0.f},
-      {COLOR_BLACK.WithContrast(iplug::Lerp(0.5f, 0.f, triangleRamp)), 1.f}
+      {COLOR_BLACK.WithContrast(iplug::Lerp(0.f, 0.5f, value)), 0.f},
+      {COLOR_BLACK.WithContrast(iplug::Lerp(0.6f, 0.2f, value)), 1.f}
     }));
     
     g.DrawVerticalLine(COLOR_BLACK, cutoutBounds, 0.f);

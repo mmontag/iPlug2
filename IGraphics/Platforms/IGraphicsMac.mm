@@ -460,9 +460,12 @@ void IGraphicsMac::PromptForFile(WDL_String& fileName, WDL_String& path, EFileAc
     [pOpenPanel setCanChooseDirectories:NO];
     [pOpenPanel setResolvesAliases:YES];
 
-    long result = [pOpenPanel runModalForDirectory:pDefaultPath file:pDefaultFileName types:pFileTypes];
+//    long result = [pOpenPanel runModalForDirectory:pDefaultPath file:pDefaultFileName types:pFileTypes];
+    long result = [pOpenPanel runModalForDirectory:nil file:nil types:pFileTypes];
+//    pOpenPanel.allowedFileTypes = pFileTypes;
+//    long result = [pOpenPanel runModal];
 
-    if (result == NSOKButton)
+    if (result == NSFileHandlingPanelOKButton)
     {
       NSString* pFullPath = [pOpenPanel filename] ;
       fileName.Set([pFullPath UTF8String]);

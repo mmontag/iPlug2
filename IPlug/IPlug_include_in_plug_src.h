@@ -52,7 +52,7 @@
       {
         AEffect& aEffect = pPlug->GetAEffect();
         pPlug->EnsureDefaultPreset();
-        aEffect.numPrograms = std::max(aEffect.numPrograms, 1); // some hosts don't like 0 presets
+        aEffect.numPrograms = max(aEffect.numPrograms, 1); // some hosts don't like 0 presets
         return &aEffect;
       }
       return 0;

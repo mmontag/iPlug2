@@ -35,7 +35,7 @@ static constexpr float PARAM_EDIT_H = 16.f; // TODO: remove?
 
 static constexpr int MAX_IMG_SCALE = 3;
 static constexpr int DEFAULT_TEXT_ENTRY_LEN = 7;
-static constexpr double DEFAULT_GEARING = 4.0;
+static constexpr double DEFAULT_GEARING = 1.0;
 
 //what is this stuff
 #define TOOLWIN_BORDER_W 6

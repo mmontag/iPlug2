@@ -755,6 +755,8 @@ void IVSliderControl::OnMouseUp(float x, float y, const IMouseMod& mod)
 
 void IVSliderControl::OnMouseOver(float x, float y, const IMouseMod& mod)
 {
+  return;
+
   if(mStyle.showValue && !mDisablePrompt)
     mValueMouseOver = mValueBounds.Contains(x,y);
   

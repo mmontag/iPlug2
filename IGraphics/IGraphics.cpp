@@ -114,7 +114,7 @@ void IGraphics::Resize(int w, int h, float scale, bool needsPlatformResize)
   ForAllControls(&IControl::OnResize);
   SetAllControlsDirty();
   DrawResize();
-  
+
   if(mLayoutOnResize)
     GetDelegate()->LayoutUI(this);
 }

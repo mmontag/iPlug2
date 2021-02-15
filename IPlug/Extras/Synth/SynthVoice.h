@@ -61,7 +61,7 @@ public:
   /** @return true if voice is generating any audio. */
   virtual bool GetBusy() const = 0;
 
-  /** Trigger is called by the VoiceAllocator when a new voice should start, or if the voice limit has been hit and an existing voice needs to re-trigger. While the VoiceInputs are sufficient to control a voice from the VoiceAllocator, this method can be used to do additional tasks like resetting oscillators.
+  /** Trigger is called by the \c VoiceAllocator when a new voice should start, or if the voice limit has been hit and an existing voice needs to re-trigger. While the \c VoiceInputs are sufficient to control a voice from the \c VoiceAllocator, this method can be used to do additional tasks like resetting oscillators.
    * @param level Normalised starting level for this voice, derived from the velocity of the keypress, or in the case of a re-trigger the existing level \todo check
    * @param isRetrigger If this is \c true it means the voice is being re-triggered, and you should accommodate for this in your algorithm */
   virtual void Trigger(double level, bool isRetrigger) {};
@@ -69,7 +69,7 @@ public:
   /** As with Trigger, called to do optional tasks when a voice is released. */
   virtual void Release() {};
 
-  /** Process a block of audio data for the voice
+  /** Process a block of audio data for the voice.
    @param inputs Pointer to input channel arrays. Sometimes synthesisers have audio inputs. Alternatively you can pass in modulation from global LFOs etc here.
    @param outputs Pointer to output channel arrays. You should add to the existing data in these arrays (so that all the voices get summed)
    @param nInputs The number of input channels that contain valid data
@@ -87,11 +87,11 @@ public:
     }
   }
 
-  /** If you have members that need to update when the sample rate changes you can do that by overriding this method
+  /** If you have members that need to update when the sample rate changes, you can do that by overriding this method.
    * @param sampleRate The new sample rate */
   virtual void SetSampleRateAndBlockSize(double sampleRate, int blockSize) {};
 
-  /** Implement this to allow picking a sound program from an integer index, as with MIDI
+  /** Implement this to allow picking a sound program from an integer index, as with MIDI.
    * @param p The new program number */
   virtual void SetProgramNumber(int pgm) {};
 

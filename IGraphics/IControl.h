@@ -607,7 +607,9 @@ public:
       i = Clip(i, 1, mBitmap.N());
     }
     IBlend blend = mControl->GetBlend();
-    g.DrawBitmap(mBitmap, mControl->GetRECT().GetCentredInside(IRECT(0, 0, mBitmap)), i, &blend);
+//    g.DrawBitmap(mBitmap, mControl->GetRECT().GetCentredInside(IRECT(0, 0, mBitmap)), i, &blend);
+
+    g.DrawFittedBitmap(mBitmap, mControl->GetRECT());
   }
 
 protected:
@@ -970,7 +972,7 @@ public:
         IRECT textRect;
         mControl->GetUI()->MeasureText(mStyle.labelText, mLabelStr.Get(), textRect);
 
-        mLabelBounds = parent.GetFromTop(textRect.H()).GetCentredInside(textRect.W(), textRect.H());
+        mLabelBounds = parent.GetFromTop(textRect.H() + 8.f);
       }
       else
         mLabelBounds = IRECT();
@@ -1197,7 +1199,7 @@ public:
   bool IsFineControl(const IMouseMod& mod, bool wheel) const;
   
 protected:
-  bool mHideCursorOnDrag = true;
+  bool mHideCursorOnDrag = false;
   EDirection mDirection;
   IRECT mTrackBounds;
   float mHandleSize;
@@ -1466,6 +1468,7 @@ public:
   
   virtual ~IButtonControlBase() {}
   void OnMouseDown(float x, float y, const IMouseMod& mod) override;
+  void OnMouseUp(float x, float y, const IMouseMod& mod) override;
   void OnEndAnimation() override;
 };
 

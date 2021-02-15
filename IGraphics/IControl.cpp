@@ -411,7 +411,10 @@ void IControl::SnapToMouse(float x, float y, EDirection direction, const IRECT& 
     val = (x-bounds.L) / bounds.W();
 
   auto valFunc = [&](int valIdx) {
-    SetValue(Clip(std::round(val / 0.001 ) * 0.001, minClip, maxClip), valIdx);
+    const IParam* p = GetParam(valIdx);
+    bool stepped = p ? p->GetStepped() : false;
+    double step = stepped ? 1./p->GetRange() : 0.001;
+    SetValue(Clip(std::round(val / step) * step, minClip, maxClip), valIdx);
   };
   
   ForValIdx(valIdx, valFunc);
@@ -711,6 +714,12 @@ void IButtonControlBase::OnMouseDown(float x, float y, const IMouseMod& mod)
   SetDirty(true);
 }
 
+void IButtonControlBase::OnMouseUp(float x, float y, const IMouseMod& mod)
+{
+  SetValue(0.);
+  SetDirty(false);
+}
+
 void IButtonControlBase::OnEndAnimation()
 {
   SetValue(0.);
@@ -966,19 +975,21 @@ void ISliderControlBase::OnMouseUp(float x, float y, const IMouseMod& mod)
 
 void ISliderControlBase::OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod)
 {
-  if(mod.touchID)
-  {
-    SnapToMouse(x, y, mDirection, mTrackBounds);
-  }
-  else
-  {
-    double gearing = IsFineControl(mod, false) ? mGearing * 10.0 : mGearing;
-    
-    if (mDirection == EDirection::Vertical)
-      SetValue(GetValue() + (static_cast<double>(dY) / static_cast<double>(mTrackBounds.T - mTrackBounds.B) / gearing));
-    else
-      SetValue(GetValue() + (static_cast<double>(dX) / static_cast<double>(mTrackBounds.R - mTrackBounds.L) / gearing));
-  }
+//  if(mod.touchID)
+//  {
+//    SnapToMouse(x, y, mDirection, mTrackBounds);
+//  }
+//  else
+//  {
+//    double gearing = IsFineControl(mod, false) ? mGearing * 10.0 : mGearing;
+//
+//    if (mDirection == EDirection::Vertical)
+//      SetValue(GetValue() + (static_cast<double>(dY) / static_cast<double>(mTrackBounds.T - mTrackBounds.B) / gearing));
+//    else
+//      SetValue(GetValue() + (static_cast<double>(dX) / static_cast<double>(mTrackBounds.R - mTrackBounds.L) / gearing));
+//  }
+
+  SnapToMouse(x, y, mDirection, mTrackBounds); //    <----
   
   SetDirty(true);
 }

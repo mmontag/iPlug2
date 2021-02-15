@@ -164,7 +164,7 @@ SkTileMode SkiaTileMode(const IPattern& pattern)
 SkPaint SkiaPaint(const IPattern& pattern, const IBlend* pBlend)
 {
   SkPaint paint;
-  paint.setAntiAlias(true);
+  paint.setAntiAlias(true );
   paint.setBlendMode(SkiaBlendMode(pBlend));
     
   if (pattern.mType == EPatternType::Solid || pattern.NStops() <  2)

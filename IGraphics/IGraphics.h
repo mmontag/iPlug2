@@ -1644,7 +1644,7 @@ private:
   bool mStrict = false;
   bool mEnableTooltips = false;
   bool mShowControlBounds = false;
-  bool mShowAreaDrawn = false;
+  bool mShowAreaDrawn = false; ///
   bool mResizingInProcess = false;
   bool mLayoutOnResize = false;
   bool mEnableMultiTouch = false;

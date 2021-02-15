@@ -62,7 +62,7 @@ public:
 
   void OnAttached() override
   {
-    IRECT sections = mRECT.GetPadded(-5.f);
+    IRECT sections = mRECT;
 
     auto prevPresetFunc = [&](IControl* pCaller) {
       IPluginBase* pluginBase = dynamic_cast<IPluginBase*>(pCaller->GetDelegate());
@@ -111,9 +111,21 @@ public:
       pCaller->GetUI()->CreatePopupMenu(*this, mMenu, pCaller->GetRECT());
     };
 
+    auto savePresetFunc = [&](IControl* pCaller) {
+      mMenu.Clear();
+
+      IPluginBase* pluginBase = dynamic_cast<IPluginBase*>(pCaller->GetDelegate());
+
+      pluginBase->ModifyCurrentPreset(nullptr);
+      const char** x{};
+      pluginBase->DumpPresetSrcCode("presets.c", x);
+    };
+
     GetUI()->AttachControl(new IVButtonControl(sections.ReduceFromLeft(50), SplashClickActionFunc, "<", mStyle))->SetAnimationEndActionFunction(prevPresetFunc);
     GetUI()->AttachControl(new IVButtonControl(sections.ReduceFromLeft(50), SplashClickActionFunc, ">", mStyle))->SetAnimationEndActionFunction(nextPresetFunc);
 //    GetUI()->AttachControl(new IVButtonControl(sections.ReduceFromRight(100), SplashClickActionFunc, "Load", mStyle))->SetAnimationEndActionFunction(loadPresetFunc);
+    GetUI()->AttachControl(new IVButtonControl(sections.ReduceFromRight(50), SplashClickActionFunc, "Save", mStyle))->SetAnimationEndActionFunction(savePresetFunc);
+
     GetUI()->AttachControl(mPresetNameButton = new IVButtonControl(sections, SplashClickActionFunc, "Choose Preset...", mStyle))->SetAnimationEndActionFunction(choosePresetFunc);
   }
 
